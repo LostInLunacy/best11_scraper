@@ -4,6 +4,7 @@
 
 import pathlib
 import pendulum
+import re
 
 # Lists with common applications
 yes_list = ['y', 'yes', 'yeah', 'confirm']
@@ -68,3 +69,35 @@ class TimeZones():
         if all([date, time]) or not any([date, time]): return dt.format(r"h:mmA ddd Do MMM Y")
         elif date: return dt.format(r"ddd Do MMM Y")
         elif time: return dt.format(r"h:mmA")
+
+# -- Regex --
+
+def get_id_from_href(href):
+    """ Extracts and returns int(id) from the a Best11 href using regex.
+    rtype: int """
+    matches = re.findall(r"id=(\d{1,8})", href)
+    try: 
+        return int(matches.pop(0))
+    except: 
+        raise Exception("Could not get href.")
+
+# -- Collections --
+
+def flat_list(list_of_lists):
+    """ Merges a list of lists into a single list. """
+    return [item for sublist in list_of_lists for item in sublist]
+
+def flat_list_of_dicts(list_of_dicts):
+    """ Merges a list of dicts into a single dict. """
+    keys = flat_list([i.keys() for i in list_of_dicts])
+    if len(set(keys)) != len(keys):
+        raise Exception("Non-unique keys - cannot merge list of dicts!")
+
+    d = list_of_dicts.pop()
+    while list_of_dicts:
+        d.update(list_of_dicts.pop())
+    return d
+
+if __name__ == "__main__":
+    print(get_id_from_href("vizualizare_club.php?id=598"))
+

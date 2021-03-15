@@ -58,7 +58,7 @@ class Session(requests.Session):
     they must be added to the __attrs__ list.
     """
     __attrs__ = requests.Session.__attrs__
-    __attrs__ += ["username", "password", "logged_in"]
+    __attrs__ += ["username", "password", "logged_in", "logged_in_from_cache"]
 
     @classmethod
     def load_session(cls, session_expire=20):
@@ -69,11 +69,13 @@ class Session(requests.Session):
             print("Attempting to load session...")
             with open(file_name, 'rb') as pf:
                 session = pickle.load(pf)
+                session.logged_in_from_cache = True
         else:
             print("Attempting to create session...")
             session = Session()
             print("Attempting to login...")
             session()
+            session.logged_in_from_cache = False
 
         return session
 
@@ -96,6 +98,7 @@ class Session(requests.Session):
         """
         if self.logged_in:
             print("You're already logged in!")
+
         self.__login_loop()
 
     def __repr__(self):
@@ -110,7 +113,7 @@ class Session(requests.Session):
 
     # --- Overloading ---
 
-    def request(self, method, suburl='', **kwargs):
+    def request(self, method, suburl='', save_cache=True, **kwargs):
         """ 
         ** Overloading **
         Customise request to default to main Best11 url
@@ -124,6 +127,11 @@ class Session(requests.Session):
         
         if not response.ok:
             response.raise_for_status()
+
+        # TODO: this may not be necessary
+        if save_cache:
+            self.write_session()
+
         return response
 
     # --- Saving Session ---
@@ -268,11 +276,5 @@ class Session(requests.Session):
         options = select.find_all('option')
         [print(option.text) for option in select.find_all('option')]
 
-
-class Spider(Session.load_session()):
-    pass
-
-
 if __name__ == '__main__':
-
-    session = Spider()
+    session = Session.load_session()
