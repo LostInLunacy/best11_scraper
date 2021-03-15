@@ -131,6 +131,7 @@ class Session(requests.Session):
         # TODO: this may not be necessary
         if save_cache:
             self.write_session()
+            self.logged_in_from_cache = True
 
         return response
 

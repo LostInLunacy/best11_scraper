@@ -6,8 +6,7 @@ import re
 from session import make_soup, Session
 from exceptions import ArguuemntException
 import util
-from util import TimeZones as tz      
-
+from util import TimeZones as tz
 
 class Best11():
 
@@ -23,22 +22,27 @@ class Best11():
         self.session = session
 
         # Apply Updates
-        self.wealthiest_clubs = self.__get_wealthiest_clubs()
-        self.active_managers = self.__get_active_managers()
+        if not self.session.logged_in_from_cache:
 
-        self.welcome()
+            self.wealthiest_clubs = self.__get_wealthiest_clubs()
+            self.active_managers = self.__get_active_managers()
+            self.welcome()
+            
 
     def welcome(self):
         local_time = tz.to_string(pendulum.now(tz=tz.local))
         server_time = tz.to_string(pendulum.now(tz=tz.server))
-
-        if self.session.logged_in_from_cache:
-            print(f"Welcome back, {self.session.username}")
-        else:
-            print(f"Welcome, {self.session.username}")
-
+        print(f"Welcome, {self.session.username}")
         print(f"Local time: {local_time}")
         print(f"Server time: {server_time}")
+
+    @property
+    def current_season(self):
+        return self.get_season_week()[0]
+
+    @property
+    def current_week(self):
+        return self.get_season_week()[1]
 
     def get_season_week(self):
         """ 
@@ -161,6 +165,85 @@ class Best11():
         dt = pendulum.from_format(date, "YYYY-MM-DD", tz=tz.server).set(hour=17, minute=45)
         # Set hour to match_start time
         return dt
+
+    # -- Getting club_id --
+    def club_id_from_club(self, club):
+        """
+        Given a club name, returns the club's id
+        r-type: int
+
+        Parameters:
+            - club (str) - case doesn't matter
+        """
+
+        club = club.lower() # Ensure lowercase club parameter
+        request = self.session.request(
+            "POST",
+            suburl="useri.php?",
+            params = {'pag': 'cauta'},
+            data = {'cautare': 3, 'denumire_club': club}
+        )
+        soup = make_soup(request)
+        table_rows = soup.find_all('table')[2].find_all('tr')[1:]
+
+        get_href = lambda index: table_rows[index].find_all('td')[2].find('a').get('href')
+        get_result = lambda index: table_rows[index].find_all('td')[2].find('a').text
+        
+        index = 0
+        while index < len(table_rows):
+            try:
+                search_result = get_result(index)
+            except:
+                return False 
+
+            # Verifies that (team_name == club) where club is what you're searching for
+            if search_result.lower() == club:
+                href = get_href(index)
+                club_id = util.get_id_from_href(href)
+                return club_id
+            else:
+                pass
+            index += 1
+        return False
+
+    def club_id_from_manager(self, manager):
+        """
+        Given a manager's name, returns their club's id
+        r-type: int
+
+        Parameters:
+            - manager (str) - case doesn't matter
+        """
+
+        manager = manager.lower() # Ensure lowercase club parameter
+        request = self.session.request(
+            "POST",
+            suburl="useri.php?",
+            params = {'pag': 'cauta'},
+            data = {'cautare': 2, 'manager': manager}
+        )
+        soup = make_soup(request)
+        table_rows = soup.find_all('table')[2].find_all('tr')[1:]
+
+        get_href = lambda index: table_rows[index].find_all('td')[2].find('a').get('href')
+        get_result = lambda index: table_rows[index].find_all('td')[0].find('b').text
+
+        index = 0
+        while index < len(table_rows):
+            try:
+                search_result = get_result(index)
+            except:
+                return False 
+
+            # Verifies that (team_name == manager) where manager is what you're searching for
+            if search_result.lower() == manager:
+                href = get_href(index)
+                club_id = util.get_id_from_href(href)
+                return club_id
+            else:
+                pass
+            index += 1
+        return False
 
     # -- B11 Utility --
     @staticmethod

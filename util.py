@@ -5,6 +5,8 @@
 import pathlib
 import pendulum
 import re
+import requests
+import shutil
 
 # Lists with common applications
 yes_list = ['y', 'yes', 'yeah', 'confirm']
@@ -98,6 +100,15 @@ def flat_list_of_dicts(list_of_dicts):
         d.update(list_of_dicts.pop())
     return d
 
-if __name__ == "__main__":
-    print(get_id_from_href("vizualizare_club.php?id=598"))
 
+# --- Downloading ---
+
+def download_file(url):
+    """ Download an individual file given a url. """
+    file_name = url.split('/')[-1]
+    with requests.get(url, stream=True) as r:
+        with open(file_name, 'wb') as file:
+            shutil.copyfileobj(r.raw, file)
+
+if __name__ == "__main__":
+    pass
