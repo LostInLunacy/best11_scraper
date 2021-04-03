@@ -2,9 +2,10 @@
     Utility functions.
 """
 
+import json
+import re
 import pathlib
 import pendulum
-import re
 import requests
 import shutil
 
@@ -38,19 +39,81 @@ def file_exists(file_name):
         return False
     return True
 
-def last_modified(file_name):
+def get_last_modified(file_name):
     file_name = pathlib.Path(file_name)
     if not file_name.exists():
         return False
     modified_time = pendulum.from_timestamp(file_name.stat().st_mtime)
     return modified_time
 
-def modified_ago(file_name):
-    modified = last_modified(file_name)
+def get_modified_ago(file_name):
+    modified = get_last_modified(file_name)
     if not modified:
         modified = EPOCH
     now = pendulum.now()
     return now.diff(modified)
+
+def apply_update_timeago(file_name, func, **time_ago):
+    """
+    Updates a json file
+    """
+    if not time_ago:
+        raise Exception("No arguments given for time_ago!")
+
+    time_ago = pendulum.duration(**time_ago)
+
+    if get_modified_ago(file_name) > time_ago:
+        result = func()
+        with open(file_name, "w") as jf:
+            json.dump(result, jf)
+            
+
+def apply_update_timeofday(file_name, func, **time_of_day):
+    """
+    Parameters:
+    - func (function) - to be executed if file needs updating.
+    The result will then be written to the given file.
+    """
+    if not time_of_day:
+        raise Exception("No arguments given for time_ago!")
+    time_of_day = pendulum.duration(**time_of_day)
+    if time_of_day > pendulum.duration(days=1):
+        raise Exception("Time must be shorter than one day!")
+
+    now = pendulum.now(tz=TimeZones.server)
+    modified = get_last_modified(file_name)
+
+    need_update = False
+
+    if now.diff(modified).in_days > 1:
+        return
+
+    """
+    Scenarios that would require an update of the json file
+    Updated today:
+    - It is now after target time, file was updated before
+    Updated yesterday:
+    - It is now before target time, file was updated before
+    - It is now after target time, file was updated after
+    """
+    if now.date() == modified.date():
+        if now.time() > time_of_day and modified.time() < time_of_day:
+            need_update = True
+    elif now.yesterday().date() == modified.date():
+        if now.time() < time_of_day and modified.time() > time_of_day:
+            need_update = True
+        elif now.time() > time_of_day and modified.time() > time_of_day:
+            need_update = True
+
+    if not need_update:
+        return
+
+    result = func()
+    with open(file_name, "w") as jf:
+        json.dump(result, jf)
+        
+
+
 
 # --- Timezones ---
 
@@ -83,6 +146,14 @@ def get_id_from_href(href):
     except: 
         raise Exception("Could not get href.")
 
+def regex_between(string, before, after):
+    """ Returns the text between two strings using regex. 
+    Takes the strign to search, and before and after strings. """
+    if(any([type(x) is not str for x in (string, before, after)])):
+        raise TypeError("string, before and after vars must all be of type str")
+    pattern = before + r'(.*?)' + after
+    return re.search(pattern, string).group(1).strip()
+
 # -- Collections --
 
 def flat_list(list_of_lists):
@@ -100,6 +171,10 @@ def flat_list_of_dicts(list_of_dicts):
         d.update(list_of_dicts.pop())
     return d
 
+def dict_percentage(d):
+    s = sum(d.values())
+    result = {k:v/s*100 for k, v in d.items()}
+    return result
 
 # --- Downloading ---
 

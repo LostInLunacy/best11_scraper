@@ -10,7 +10,6 @@ from session import make_soup
 import util
 
 
-
 class Player(Best11):
     """ Contains all info pertaining to an individual player (e.g. Leyers Carletto [ID: 302424]),
     given their id. """
@@ -90,8 +89,8 @@ class Player(Best11):
         """ Verify that player does in fact exists. Returns True/False. """
         if len(self.tables) == 1:
             self.exist = False
-            print(f"""Could not get player profile for player [ID: {self.player_id}].
-            Assumed that player does not exist.""")
+            """Could not get player profile for player [ID: {self.player_id}].
+            Assumed that player does not exist."""
             return False
         return True
 

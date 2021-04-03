@@ -2,14 +2,19 @@
     For grabbing available information about a single club.
 """
 
+import json
+
 # Imports
 import re
 import pendulum
+from collections import Counter
 
 # Local Imports
 from session import make_soup, MAIN_URL
 from spider import Best11
 import util
+
+from player import Player
 
 class Club(Best11):
     """
@@ -44,9 +49,11 @@ class Club(Best11):
         self.soup_dict = self.__get_soup_dict()
 
     def __repr__(self):
+        # TODO
         pass
 
     def __str__(self):
+        # TODO
         pass
 
     # --- Soup ---
@@ -205,6 +212,61 @@ class Club(Best11):
             return False
         return motto
 
+    @motto.setter
+    def motto(self, value):
+
+        # Edge case
+        if (t:= type(value)) is not str:
+            raise TypeError(f"Value for objective must be str, not {t}")
+        
+        # Make request to change motto
+        self.session.request(
+            'POST',
+            'schimba_motto.php',
+            data={
+                'club': self.club_id,
+                'mesaj': value
+            }
+        )
+
+    @property
+    def objective(self):
+        """ Returns the club's objective. """
+        return self.soup.find_all('table')[12].find_all('tr')[1].find('td').text.strip()
+
+    @objective.setter
+    def objective(self, value):
+        """ Sets the objective
+        1 = Winning
+        2 = Top 3
+        3 = Top half
+        4 = Mid position
+        5 = Avoiding relegation
+        """
+        # Edge case
+        if (t:= type(value)) is not int:
+            raise TypeError(f"Value for objective must be int, not {t}")
+        elif value not in range(1,6):
+            raise Exception(f"Value out of inclusive range 1-5: {t}")
+
+        # Make request to change objective
+        self.session.request(
+            'POST',
+            'schimba_obiectiv.php',
+            data = {
+                'club': self.club_id,
+                'obiectiv': value
+            }
+        )
+        
+
+    @property
+    def wealth_rank(self):
+        for rank, club_id in self.wealth_100.items():
+            if self.club_id == club_id:
+                return int(rank)
+        return False
+
     # --- Properties Dict ---
 
     def get_details(self):
@@ -228,9 +290,253 @@ class Club(Best11):
         for k, v in self.get_details().items():
             print(f"{k}: {v}")
 
+    # --- Club Players ---
+
+    def __get_player_ids_from_squad_table(self, table):
+        """ Returns list of player_ids from a given table in squad table soup.
+        e.g. returns all goalkeepers, or returns all defenders """
+
+        """ Grabs the player profile link for each player on the squad page,
+        NOTE that there are two different ways of viewing a squad. When you
+        look at your own club, you have access to more information. However
+        you can only do this for your own club. This function makes use of the 
+        more restricted view, which is how you look at others' clubs. """
+        player_hrefs = [n.find('td').find_all('a')[-1].get('href') for n in table.find_all('tr')[1:]]
+
+        # Grab and return id from each href in the above list
+        return [util.get_id_from_href(x) for x in player_hrefs]
+
+    @property 
+    def player_dict(self):
+        """ Returns a dict of players within that team by position. """
+        request = self.session.request("GET", 'vizualizare_jucatori.php?', params=self.params)
+        tables = make_soup(request).find_all('table')
+        positions = self.player_positions # (Goalkeeper, Defen...)
+
+        # NOTE: needs a comment here
+        player_dict = {}
+        iterated_through = 1
+        for position in positions:
+            player_ids_for_position = self.__get_player_ids_from_squad_table(tables[iterated_through])
+            iterated_through += len(player_ids_for_position) + 2 
+            player_dict[position] = player_ids_for_position
+        return player_dict
+
+    @property
+    def players_in_each_position(self):
+        """ Return tuple of total number of players in that position. """
+        positions = self.player_positions # Goalkeeper, Defen...
+        return tuple([len(self.player_dict[p]) for p in positions])
+
+    @property
+    def player_ids(self):
+        """ Returns concatenated list of all player_ids. """
+        return util.flat_list(self.player_dict.values())
+
+    # --- Messaging ---
+
+    @property
+    def msg_id(self):
+        """ Returns the ID needed to message the manager. """
+        if self.status == "bot":
+            raise Exception("Tried to get msg_id of bot club.")
+        elif self.status == "user":
+            """ When you send a message on this game either via Guestbook or Direct Message,
+            you are using your message_id. Hence, when sending a message to your own guestbook,
+            you're essentially messaging yourself. Since a user cannot Direct Message themselves via
+            the send message button like they can with other users,
+            this is the only way to grab this information, without navigating to the create message page,
+            iterating through the ids to send to and breaking at the name of the user (you can
+            send a message to yourself using your own id), which obviously takes much longer. """
+            input_tag = self.soup.find('input', attrs={'name': 'user'})
+            msg_id = int(input_tag.get('value'))
+        else:
+            msg_href = self.soup_dict['club_info'].find_all('a')[1].get('href')
+            msg_id = int(re.findall(r"catre=(\d{1,8})", msg_href)[0])
+        return msg_id
+
+    # --- Transfer ---
+
+    @staticmethod
+    def __get_date_from_transfer(string):
+        """ Returns the date given a string containing the transfer. """
+        return util.regex_between(string, r"popup\('", r"\d\d:")
+
+    @staticmethod
+    def __get_other_club_from_transfer(string):
+        """ Returns other club involved in the transfer given a string containing said transfer """
+        return util.regex_between(string, r"b&gt;", r"&lt;")
+
+    def __get_individual_transfer_info(self, transfer):
+        """ Get the information for an individual transfer on club's transfers page. """
+        try:
+            amount = self.get_value_from_string(transfer.find('b').text) # Get transfer amount
+        except:
+            print(f"Could not get transfer info for transfer {transfer.find('b').text}")
+
+        td = transfer.find('td')
+        player_name = td.text # that's player, not manager
+        player_id = util.get_id_from_href(td.find_all('a')[1].get('href'))
+
+
+        text_info = str(td)
+        date = self.__get_date_from_transfer(text_info) # Get date of transfer           
+        other_club = self.__get_other_club_from_transfer(text_info) # Other club involved in transfer
+
+        # Return dict containing all info
+        return {
+            'amount': amount,
+            'date': date,
+            'other_club': other_club,
+            'player_id': player_id,
+            'player_name': player_name
+        }
+
+    @property
+    def transfers(self):
+        """
+        Returns a list of transfers (bought and sold), sorted by date
+        """
+        request = self.session.request("GET", "transferuri_club.php?", params=self.params)
+        soup = make_soup(request)
+
+        # For i in View all Transfers > rows of data under transfers(in) and transfers(out)
+        # grab information about each transfer through the __get_individual_transfer_info() func
+        bought = [self.__get_individual_transfer_info(i) for i in soup.find_all('table')[2].find_all('tr')]
+        sold = [self.__get_individual_transfer_info(i) for i in soup.find_all('table')[4].find_all('tr')]
+
+        [x.update({'type': 'sell'}) for x in sold]
+        [x.update({'type': 'buy'}) for x in bought]
+
+        transfers = sorted(list(bought + sold), key=lambda k: pendulum.from_format(k['date'], 'YYYY-MM-DD'))
+        return transfers
+
+    @property
+    def transfers_bought(self):
+        return [i for i in self.transfers if i['type'] == 'buy']
+
+    @property
+    def transfers_sold(self):
+        return [i for i in self.transfers if i['type'] == 'sell']
+
+    @property
+    def transfers_sold_to_bank(self):
+        return [i for i in self.transfers_sold if i['other_club'] == "Bank"]
+
+    @property
+    def transfers_sold_to_club(self):
+        return [i for i in self.transfers_sold if i['other_club'] != "Bank"]
+
+    @property
+    def home_player_ids(self):
+        """
+        NOTE: This will miss players who retired as a result of turning 36
+        These cannot be scraped; the data is not retrievable.
+        """
+
+        ## Get home players the club has transferred
+        transfers = self.transfers
+        unique_players = set([i['player_id'] for i in transfers])
+        home_players = []
+
+        for transfer in transfers:
+            if (player_id := transfer['player_id']) not in unique_players:
+                continue
+            if transfer['type'] == 'sell':
+                home_players.append(player_id)
+            unique_players.remove(player_id)
+        
+        ## Get home players currently at the club
+        current_players = self.player_ids
+        bought_players = set([i['player_id'] for i in self.transfers_bought])
+        
+        for player_id in current_players:
+            if player_id in bought_players:
+                continue
+            home_players.append(player_id)
+
+        ## Sort the player_ids such that most recent players are last in the list
+        return sorted(home_players)
+
+    def get_home_player_ids(self, recent=0):
+        if not recent: return self.home_player_ids
+        
+        try:
+            return self.home_player_ids[:-recent-1:-1]
+        except IndexError:
+            # Out of range - recent > len(home_player_ids)
+            # So just return the full list
+            return self.home_player_ids
+        
+
+    def get_talent_luck(self, recent=0):
+        """
+        NOTE: this property takes a long time to execute!
+        """
+        player_ids = self.get_home_player_ids(recent)
+
+        try:
+            result = dict(sorted(Counter([f"{Player(i).talent}*" for i in player_ids]).items()))
+        except:
+            # Occasional error whereby one or more player_ids cannot be found.
+            # In this case, the player is skipped in a standard for loop, since the info can't be retrieved.
+            player_talents = []
+            for player_id in player_ids:
+                try:
+                    player = Player(player_id)
+                    player_talents.append(f"{player.talent}*")
+                except:
+                    pass
+            result = dict(sorted(Counter(player_talents).items()))
+        finally:
+            return result
+            
+
+
+    # --- Objects ---
+    @property  
+    def player_objects(self):
+        """ Returns a player object for each player owned by the club. """
+        pass
+        # return [Player(p) for p in self.player_ids]
+
+
+if __name__ == "__main__":
+    pass
+
+    club = Club(club="Noworry About MJ")
+
+    # print(club.home_player_ids)
+
+
+    # player_ids = club.home_player_ids[:-60-1:-1]
+    
+    # for i in player_ids:
+    #     p = Player(i)
+    #     print(f"talent {p.talent} | age {p.age} | {p.player_name} [ID: {p.player_id}]")
+
+    # clubs = {k:v for k,v in clubs.items() if int(k) > 92}
+
+
+    # results = []  
+    # for rank, club in clubs.items():
+    #     club_obj = Club(club)
+    #     print(f"Attempting to get data for {club_obj.club_name}...")
+    #     result = club_obj.get_talent_luck(recent=100)
+    #     print(f"{int(rank):3d}: {club_obj.club_name}: {result}")
+    #     print()
+
+    #     results.append(
+    #         {'rank': rank, 'club': club_obj.club_name, 'res': result}
+    #     )
 
     
 
 
-if __name__ == "__main__":
-    c = Club(200)
+
+
+
+    # with open("test/test_file.json", "w") as jf:
+    #     json.dump(results, jf)
+
+

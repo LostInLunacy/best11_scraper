@@ -1,6 +1,7 @@
 
 import pendulum
 import re
+import json
 
 # Local imports
 from session import make_soup, Session
@@ -12,6 +13,8 @@ class Best11():
 
     # Files
     fn_active_managers = "session_files/active_managers.json"
+    fn_wealth_100 = "session_files/wealth_100.json"
+    fn_next_match = "session_files/next_match.json"
 
     # Best11
     player_positions = ('Goalkeeper', 'Defender', 'Midfielder', 'Striker')
@@ -21,12 +24,24 @@ class Best11():
         
         self.session = session
 
-        # Apply Updates
-        if not self.session.logged_in_from_cache:
+        # Apply updates to files
+        util.apply_update_timeago(self.fn_active_managers, self.__get_active_managers, days=1)
+        util.apply_update_timeago(self.fn_wealth_100, self.__get_wealthiest_clubs, minutes=30)
 
-            self.wealthiest_clubs = self.__get_wealthiest_clubs()
-            self.active_managers = self.__get_active_managers()
-            self.welcome()
+        # # Apply Updates
+        # if not self.session.logged_in_from_cache:
+
+        #     print("Hi")
+
+        #     self.wealthiest_clubs = self.__get_wealthiest_clubs()
+        #     self.active_managers = self.__get_active_managers()
+
+        #     print(self.wealthiest_clubs)
+        #     print(self.active_managers)
+
+        #     self.session.write_session()
+
+        #     self.welcome()
             
 
     def welcome(self):
@@ -43,6 +58,18 @@ class Best11():
     @property
     def current_week(self):
         return self.get_season_week()[1]
+
+    @property
+    def active_managers(self):
+        with open(self.fn_active_managers) as jf:
+            active_managers = json.load(jf)
+        return active_managers
+
+    @property
+    def wealth_100(self):
+        with open(self.fn_wealth_100) as jf:
+            wealth_100 = json.load(jf)
+        return wealth_100
 
     def get_season_week(self):
         """ 
@@ -83,13 +110,21 @@ class Best11():
         wealth_100 = util.flat_list_of_dicts(table_entries)
         return wealth_100
 
+    def __load_active_managers(self):
+        """ Loads an existing list of active managers from file. """
+        file_name = self.fn_active_managers
+        if util.get_modified_ago(file_name).days < 7:
+            with open(file_name) as jf:
+                active_managers = json.load(jf)
+            return active_managers
+        return False          
+
     def __get_active_managers(self):
         """
         Returns a list of active managers
         r-type: list
         r-format: [club_ids...]; [int]
-        """
-        
+        """        
         # Make post request via Community > Users > Search > Search by manager
         request = self.session.request(
             "POST",
@@ -143,7 +178,7 @@ class Best11():
                 active_managers.append(n)
         return active_managers
 
-    def get_next_match(self):
+    def get_next_match(self, string=True):
         """
         Goes to the schedule page
         Grabs the dat of the first match that has '-' for its result (i.e. has not yet been played)
@@ -164,6 +199,7 @@ class Best11():
         # Convert to dt object
         dt = pendulum.from_format(date, "YYYY-MM-DD", tz=tz.server).set(hour=17, minute=45)
         # Set hour to match_start time
+        if string: dt = dt.format('dddd Do [of] MMMM h:mm A')
         return dt
 
     # -- Getting club_id --
@@ -257,6 +293,8 @@ class Best11():
         try:
             result = re.findall(pattern, string)[0]
         except IndexError:
+            if "0 C" in string:
+                return 0
             raise IndexError("Could not get value from string")
 
         # Join all groups ('-', '1.', '244', '.505') -> '-1.244.505'

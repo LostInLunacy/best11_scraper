@@ -58,14 +58,14 @@ class Session(requests.Session):
     they must be added to the __attrs__ list.
     """
     __attrs__ = requests.Session.__attrs__
-    __attrs__ += ["username", "password", "logged_in", "logged_in_from_cache"]
+    __attrs__ += ["username", "password", "logged_in", "logged_in_from_cache", "active_managers", "wealth_100"]
 
     @classmethod
     def load_session(cls, session_expire=20):
         file_name = Session.fn_session
     
         # If the file exists and was modified less than <session_expire> minutes ago 
-        if util.file_exists(file_name) and util.modified_ago(file_name).in_minutes() <= session_expire:
+        if util.file_exists(file_name) and util.get_modified_ago(file_name).in_minutes() <= session_expire:
             print("Attempting to load session...")
             with open(file_name, 'rb') as pf:
                 session = pickle.load(pf)
@@ -274,8 +274,8 @@ class Session(requests.Session):
         soup = make_soup(request)
 
         select = soup.find('select', attrs={'class': 'normal', 'name': 'cpt'})
-        options = select.find_all('option')
         [print(option.text) for option in select.find_all('option')]
+        
 
 if __name__ == '__main__':
     session = Session.load_session()
