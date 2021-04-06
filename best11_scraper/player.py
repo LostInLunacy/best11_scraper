@@ -1,5 +1,7 @@
 """
-    For grabbing available information about a single player (not manager).
+    For grabbing available information pertaining to players
+    By player I mean e.g. Meg Myers [ID: 234841], not a real player of the game
+    Though you can also get the club's manager
 """
 
 import re
@@ -235,6 +237,11 @@ class Player(Best11):
         return tuple([float(i) for i in player_skills])
 
     @property
+    def skill_total(self):
+        """ Returns a player's total skill (e.g. 80-75-72 -> 227) """
+        return sum(self.skill)
+
+    @property
     @Decorators.get_table_index
     def energy(self, table_index=''):
         """ Get ENERGY from player profile instance. """
@@ -267,7 +274,6 @@ class Player(Best11):
         talent = talent_list.index(i) + 1
         if stars: return f"{chr(9733)} " * talent
         return talent
-        
 
     def get_form(self):
         """ Returns a tuple of a player's form in the past 15 matches. """
@@ -310,25 +316,20 @@ class Player(Best11):
             'club': self.club,
             'position': self.pos,
             'age': self.age,
+            'nationality': self.nat,
 
-            'skill_1': self.skill[0],
-            'skill_2': self.skill[1],
-            'skill_3': self.skill[2],
-
-            'agg': self.fixed[0],
-            'amb': self.fixed[1],
-            'int': self.fixed[2],
-            'sta': self.fixed[3],
-            'vul': self.fixed[4],
+            'skill_total': self.skill_total,
+            'skills': ' - '.join([str(i) for i in self.skill]),
+            'fixed': ' - '.join([str(i) for i in self.fixed]),
+            'exp': self.exp,
 
             'salary': self.salary,
-            'value': self.value,
-            'exp': self.exp,
-            'nationality': self.nat,
+            'value': self.value,            
             'talent': self.talent,
 
             'energy': self.energy,
             'morale': self.morale,
+            'boots': self.boots,
 
             'form': self.avg_form,
             'goals_total': self.goals[1],
@@ -336,12 +337,13 @@ class Player(Best11):
             'mom_total': self.mom[1],
             'mom_season': self.mom[0],
 
-            'boots': self.boots,
-
+            'peer_advantage': self.peer_advantage,
+            
             'listed': self.listed
             }
 
-    def print_details(self):
+    def print_long_details(self):
+        """ Print player's details in a tidy format. """
         details = self.get_details()
         print(f"\n{details['name']} [ID: {details['id']}]")
         del details['id']
@@ -350,6 +352,91 @@ class Player(Best11):
             print(f"{k}: {v}")
         print()
 
+    def print_details(self, *args):
+        """ Print the player's details based on args provided
+        (e.g. "form", "boots -> will give info about the player's form and boots)
+
+        Params:
+        - args (strings)
+
+        r-type: None
+        """
+        details = self.get_details()
+        print(f"\n{details['name']} [ID: {details['id']}]")
+        del details['id']
+        del details['name']
+
+        details = {k:v for k, v in details.items() if k in args}
+        for k, v in details.items():
+            print(f"{k}: {v}")
+        print()
+
+    @property
+    def peer_advantage(self):
+        """ 
+        A function I use to determine whether a play is ahead or behind in development
+        What's deemed average development has been arbitrarily chosen, and thus may be 
+        changed in the future
+
+        r-type: int (+ or -)
+        """
+        cutoff_age = 23
+        age = self.age
+
+        if age > cutoff_age:
+            # print(f"Peer advantage stat for {cutoff_age} year olds and under")
+            return False
+        
+        skill_total = self.skill_total
+        while age < cutoff_age:
+            skill_total += 20
+            age += 1
+
+        return int(round(skill_total / 230, 2)*100 -100)
+
+
+class UserPlayer(Player):
+
+    def __init__(self, player_id):
+        # Get the default information for the player
+        super().__init__(player_id)
+
+    @property
+    def _profile(self):
+        """ Returns the soup of the player's profile page. """
+        response = self.session.request("GET", 'profil.php?', params=self.params)
+        profile = make_soup(response)
+        return profile     
+
+    @property
+    def potentials(self):
+        """ Returns the player's potentials. r-type: int. """
+        # Potentials text has these attributes. So use this to get a list of potentials
+        green_text = [i.text for i in self._profile.find_all('font', attrs={"color": "#547B22"})]
+        # Grab the float of every element in this list of it matches the \d\d pattern
+        return tuple([float(i) for i in green_text if re.match(r'\d{2}', i)])
+
+    @property
+    def morale_precise(self):
+        """ Returns the precise morale of a player (out of 100, rather than 5). r-type: int """
+        index = 20 if not self.listed else 23
+        onmouseover = str(self._profile.find_all('table')[index].find_all('tr')[1].find('a'))
+        return int(re.findall(r"(\d{1,3})%'", onmouseover)[0])
+
+    def change_name(self):
+        """ 
+        Change the player's name. r-type: None
+        NOTE: this can only be done once!
+        """
+        if not self._profile.find('a', attrs={'href': re.compile(r"schimba_nume.php\?id=\d+$")}):
+            # Name has already been changed
+            return False
+        # Confirm change of name
+        self.session.request("GET", suburl='schimba_nume.php?', params={'id': self.player_id, 'pag': 'confirma'})
+
+    
+
 if __name__ == "__main__":
-    x = Player(145677)
-    print(x.talent)
+    pass
+    # x = Player()
+    # print(x.peer_advantage)

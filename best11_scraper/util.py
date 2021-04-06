@@ -197,5 +197,23 @@ def download_file(url):
         with open(file_name, 'wb') as file:
             shutil.copyfileobj(r.raw, file)
 
+# -- Calculation --
+
+def mean_avg(lst, r=2):
+    """ Returns the mean of a list. """
+    if not all([isinstance(i, (float, int)) for i in lst]):
+        raise Exception("Attempted to sum list containing non numeric values.")
+    return round(sum(lst) / len(lst),r)
+
+# --- Printing ---
+
+def print_divider(string, char="="):
+    """ Print a line of dividing chars above and below a string. 
+    Use for titles/important text. """
+    l = len(string)
+    print('\n' + char*l)
+    print(string)
+    print(char*l)
+
 if __name__ == "__main__":
     pass

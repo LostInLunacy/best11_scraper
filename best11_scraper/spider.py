@@ -1,3 +1,9 @@
+""" 
+    - Welcoming the user (of the program)
+    - General functions and variables relating to Best11
+        - e.g. for reading data on wealth_100, active_managers
+        - getting current season, week etc.
+"""
 
 import pendulum
 import re
@@ -195,6 +201,11 @@ class Best11():
         return dt
 
     # -- Getting club_id --
+    def get_user_club_id(self):
+        """ Returns the club_id for the user.
+        r-type: int """
+        return self.club_id_from_manager(self.session.username)
+
     def club_id_from_club(self, club):
         """
         Given a club name, returns the club's id
@@ -281,7 +292,7 @@ class Best11():
         e.g. "blah 511.41 C." -> 511.41
         """
         # Pattern to get value
-        pattern = r"(-)?(\d{1,2}\.)?(\d{3})(\.\d{2,3})?\s?C?"
+        pattern = r"(-)?(\d{1,2}\.)?(\d{1,3})(\.\d{2,3})?\s?(?:C|TP)?"
         try:
             result = re.findall(pattern, string)[0]
         except IndexError:
@@ -297,8 +308,13 @@ class Best11():
         # first period
         if result.count('.') == 2: result = result.replace('.', '', 1)
 
+        under1k = False
+        if result.count('.') == 0: under1k = True
+
         # Get the value
         value = float(result)
+
+        if under1k: value /= 1000
 
         # If value after decimal point is zero, convert to int.
         return int(value) if int(value) == value else value

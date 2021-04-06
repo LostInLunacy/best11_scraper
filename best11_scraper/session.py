@@ -71,8 +71,9 @@ class Session(requests.Session):
         else:
             print("Attempting to create session...")
             session = Session()
+
             print("Attempting to login...")
-            session()
+            session() # execute __call__() function to login
             session.logged_in_from_cache = False
 
         return session

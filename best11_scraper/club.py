@@ -1,5 +1,5 @@
 """
-    For grabbing available information about a single club.
+    For grabbing available information pertaining to clubs in the game
 """
 
 import json
@@ -14,7 +14,9 @@ from session import make_soup
 from spider import Best11
 import util
 
-from player import Player
+from player import Player, UserPlayer
+
+# TODO move all suburls to parent class Spider?
 
 class Club(Best11):
     """
@@ -32,7 +34,7 @@ class Club(Best11):
         if not any((club_id, club, manager)):
             raise Exception("You must provide either club_id, club or manager")
         elif club_id:
-            ## Verify that club_id is num
+            # The club_id has been given. Verify it is num...
             if not isinstance(club_id, int):
                 # if str number, convert to int
                 if not (r"^\d{1,4}$", club_id):
@@ -40,8 +42,14 @@ class Club(Best11):
                     or use alternative constructors to initialise using club name or manager.""")
                 club_id = int(club_id)
         elif club:
+            # elif passed the club name, get the corresponding club_id for that club
             club_id = self.club_id_from_club(club)
         elif manager:
+            # elif passed the club manager, get the corresponding club_id for that manager
+
+            # if set to user, get username from session
+            if manager == 'user': manager = self.session.username
+            
             club_id = self.club_id_from_manager(manager)        
 
         self.club_id = club_id
@@ -79,7 +87,8 @@ class Club(Best11):
 
     @property
     def avatar(self):
-        """ Returns the link to a club's avatar. """
+        """ Returns the link to a club's avatar.
+        r-type: str """
         request = self.session.request("GET", "vizualizare_club.php?", params=self.params)
         soup = make_soup(request)
 
@@ -95,7 +104,8 @@ class Club(Best11):
 
     def download_avatar(self):
         """ Downloads club's avatar to current directory.
-        If club's avatar is default, returns False. """
+        If club's avatar is default, returns False. 
+        r-type: str """
 
         if not (avatar:= self.avatar):
             return False
@@ -110,12 +120,14 @@ class Club(Best11):
         """ Takes the links on a club's page. Returns True if club is corrupt else False.
         Corrupt means that, for whatever reason, certain elements on the club page are 
         placed slightly differently. So it is useful to know for getting information
-        from the page. """
+        from the page. 
+        r-type: str """
         return True if len(self.soup_dict['club_info_links']) == 3 else False
 
     @property
     def manager(self):
-        """ Returns a club's manager. """
+        """ Returns a club's manager. 
+        r-type: str """
         manager = self.soup_dict['club_info_links'][0].text
         if not manager:
             raise Exception("Could not get manager.")
@@ -124,7 +136,8 @@ class Club(Best11):
     @property
     def status(self):
         """ Returns a club's status
-        | User | Active | Inactive | Corrupt | Bot """
+        | User | Active | Inactive | Corrupt | Bot 
+        r-type: str """
         if self.manager == "BOT Manager": return "bot"
         if self.manager == self.session.username: return "user"
         if self.__club_is_corrupt(): return "corrupt" # NOTE: this order is fine because BOTS don't seem to corrupt
@@ -132,19 +145,22 @@ class Club(Best11):
 
     @property
     def club_name(self):
-        """ Returns a club's name e.g. Noworry About MJ. """
+        """ Returns a club's name e.g. Noworry About MJ.
+        r-type: str """
         i = 0 if self.status == "bot" else 1 # location of element changes depending on club status
         return self.soup_dict['club_info'].find_all('font')[i].text
 
     @property
     def country(self):
-        """ Returns the manager's (and therefore club's) nationality. """
+        """ Returns the manager's (and therefore club's) nationality.
+        r-type: str """
         i = 1 if self.status in ('bot', 'user', 'corrupt') else 3
         return self.soup_dict['club_info_links'][i].text
 
     @property
-    def league(self):
-        """ Returns the current league of a club. """
+    def league_id(self):
+        """ Returns the current league_id of a club.
+        r-type: int """
         i = 2 if self.status in ('bot', 'user', 'corrupt') else 4
         # Get link that goes to club's current league
         link = self.soup_dict['club_info_links'][i]
@@ -154,14 +170,16 @@ class Club(Best11):
 
     @property
     def fame(self):
-        """ Returns a club's fame. """
+        """ Returns a club's fame.
+        r-type: int """
         if self.status == "bot": return False
         fame = self.soup_dict['club_info'].find('b').text[:-1]
         return int(fame)
 
     @property
     def avg_fame_season(self):
-        """ Return the average fame accrued each season since a club's origin. """
+        """ Return the average fame accrued each season since a club's origin.
+        r-type: int """
         if self.status == "bot": return False
         seasons_played = self.current_season - self.origin + 1
         return round(self.fame / seasons_played, 2)
@@ -169,7 +187,8 @@ class Club(Best11):
     @property
     def origin(self):
         """ Returns the first season in a club's history - 
-        presumably the season a manager started playing. """
+        presumably the season a manager started playing.
+        r-type: int """
         # Make request to club history page
         request = self.session.request("GET", 'istoric_club.php?', params=self.params)
         soup = make_soup(request)
@@ -179,14 +198,17 @@ class Club(Best11):
 
     @property
     def stadium_capacity(self):
-        """ returns a club's stadium capacity if > DEFAULT, which is 10,000
-        If it is default, return False. """
+        """ Returns a club's stadium capacity if > DEFAULT, which is 10,000
+        If it is default, return False. 
+        r-type: int (or False if == 10,000)"""
         element = self.soup.find_all('table')[8].find('tr').find_all('td')[1].find('b').text
         capacity = int(element.replace('.', ''))
         return 'DEFAULT' if capacity == 10000 else capacity 
 
     @property
     def team_kit(self):
+        """ Returns the images used to make up the club's team kit.
+        r-type: tuple """
         soup = self.soup_dict['equipment']
         results = soup.find_all('img', attrs={'src': re.compile("echipament")})
         if len(results) != 2: 
@@ -195,11 +217,17 @@ class Club(Best11):
 
     @property
     def sponsors(self):
+        """ Returns the names of the club's sponsors 
+        r-type: tuple"""
         soup = self.soup_dict['equipment']
         results = soup.find_all('img', attrs={'src': re.compile("sponsori")})
+
+        pattern_to_split_sponsor_link = r"(\w+).gif$"
+        sponsors = tuple([x.title() for x in [re.findall(pattern_to_split_sponsor_link, i.get('src')).pop() for i in results]])
         if len(results) != 2:
             raise Exception(f"Invalid number of sponsors: {len(results)}. Should be 2")
-        return tuple(i.get('src') for i in results)
+        return sponsors
+        
 
     @property
     def motto(self):
@@ -214,6 +242,18 @@ class Club(Best11):
 
     @motto.setter
     def motto(self, value):
+        """
+        Sets the motto for the club tied to the instance.
+
+        To append something to an existing motto, 
+        pass the str value 'append: [text to append]'
+
+        r-type: None - just updates via post request
+        """
+        if value.startswith("append:"):
+            _, *value = value.split('append:')[0:]
+            value = self.motto + ''.join(value)
+
 
         # Edge case
         if (t:= type(value)) is not str:
@@ -262,6 +302,10 @@ class Club(Best11):
 
     @property
     def wealth_rank(self):
+        """
+        Returns the club's position within the wealth_100
+        r-type: int (or False if outside wealth_100)
+        """
         for rank, club_id in self.wealth_100.items():
             if self.club_id == club_id:
                 return int(rank)
@@ -277,7 +321,7 @@ class Club(Best11):
             'status': self.status,
             'manager': self.manager,
             'country': self.country,
-            'league': self.league,
+            'league_id': self.league_id,
             'fame': self.fame,
             'origin': self.origin,
             'stadium_capacity': self.stadium_capacity            
@@ -396,6 +440,7 @@ class Club(Best11):
     def transfers(self):
         """
         Returns a list of transfers (bought and sold), sorted by date
+        r-type: list of dicts
         """
         request = self.session.request("GET", "transferuri_club.php?", params=self.params)
         soup = make_soup(request)
@@ -413,18 +458,26 @@ class Club(Best11):
 
     @property
     def transfers_bought(self):
+        """ Returns the transfers involving players the club has bought. 
+        r-type: list of dicts """
         return [i for i in self.transfers if i['type'] == 'buy']
 
     @property
     def transfers_sold(self):
+        """ Returns the transfers involving players the club has sold.
+        r-type: list of dicts. """
         return [i for i in self.transfers if i['type'] == 'sell']
 
     @property
     def transfers_sold_to_bank(self):
+        """ Returns the transfers involving players the club has sold to the bank.
+        r-type: list of dicts. """
         return [i for i in self.transfers_sold if i['other_club'] == "Bank"]
 
     @property
     def transfers_sold_to_club(self):
+        """ Returns the transfers involving players the club has sold to the other clubs.
+        r-type: list of dicts. """
         return [i for i in self.transfers_sold if i['other_club'] != "Bank"]
 
     @property
@@ -467,7 +520,6 @@ class Club(Best11):
             # Out of range - recent > len(home_player_ids)
             # So just return the full list
             return self.home_player_ids
-        
 
     def get_talent_luck(self, recent=0):
         """
@@ -491,18 +543,89 @@ class Club(Best11):
         finally:
             return result
             
-
-
     # --- Objects ---
     @property  
     def player_objects(self):
         """ Returns a player object for each player owned by the club. """
         pass
-        # return [Player(p) for p in self.player_ids]
+        return [Player(p) for p in self.player_ids]
+
+
+class UserClub(Club):
+
+    def __init__(self):
+        
+        # Get the user's club_id
+        club_id = Best11().get_user_club_id()
+
+        # Initialise a Club object with user's club_id
+        super().__init__(club_id)
+                
+    @property
+    def tables(self):
+        """
+        Returns the soup for the club.php which contains
+        extra info about the user's club.
+
+        NOTE: I turned this from method used in __init__ to property
+        so that it remains constantly updated
+        """
+        response = self.session.request("GET", "club.php?")
+        tables = make_soup(response).find_all('table')
+        return tables
+
+    @property
+    def cash_balance(self):
+        """ Returns the user's cash_balance. r-type: int. """
+        value = self.tables[20].find_all('td')[1].text
+        return self.get_value_from_string(value)
+
+    @property
+    def tp_balance(self):
+        """ Returns the user's tp_balance. r-type: int. """
+        value = self.tables[22].find_all('td')[1].text
+        return self.get_value_from_string(value)
+
+    @property
+    def fans(self):
+        """ Returns the number of fans you have. r-type: int """
+        value = self.tables[10].find('b').text
+        return int(value)
+
+    @property
+    def fans_mood(self):
+        """ Returns the mood of your ciub's fans. r-type: int. """
+        text = self.tables[10].find('a').get('onmouseover')
+        value = re.findall(r"\d{1,3}%", text)[0][:-1] # [:-1] gets rid of the %
+        return int(value)
+        
+    @property
+    def pitch_quality(self):
+        """ Returns the condition of your pitch out of 100. r-type: int. """
+        value = self.tables[8].find_all('b')[-1].text[:-1]
+        return int(value)
+
+    @property
+    def player_objs(self):
+        """ 
+        Returns a player object for each player owned by the club. r-type: list
+        NOTE: overrides parent method.
+        """
+        return [UserPlayer(p) for p in self.player_ids]
 
 
 if __name__ == "__main__":
     pass
 
-    club = Club(club="Noworry About MJ")
-    print(club.club_name, club.manager)
+    # from tqdm import tqdm
+
+    # # club = Club(club="Noworry About MJ")
+    # # print(type(club.origin))
+
+    # club = Club(manager="user")
+    # home_players = club.get_home_player_ids()
+
+    # home_player_objs = sorted([Player(p) for p in tqdm(home_players)], key=lambda x:x.skill_total, reverse=True)
+
+    # for i, player in enumerate(home_player_objs):
+    #     print(f"{i+1:3d} {player.player_name} [{player.player_id}]: {player.skill_total}")
