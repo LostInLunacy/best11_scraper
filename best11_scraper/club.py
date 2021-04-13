@@ -141,7 +141,7 @@ class Club(Best11):
         if self.manager == "BOT Manager": return "bot"
         if self.manager == self.session.username: return "user"
         if self.__club_is_corrupt(): return "corrupt" # NOTE: this order is fine because BOTS don't seem to corrupt
-        return "active" if self.club_id in self.active_managers else "inactive"
+        return "active" if self.club_id in self.active_club_ids else "inactive"
 
     @property
     def club_name(self):

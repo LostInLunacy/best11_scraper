@@ -79,7 +79,11 @@ class Auto(Best11):
 
         soup = make_soup(response)
         div_text = soup.find_all('div')[4].text
-        value = float(re.findall(r"(\d?.\d{3}) TP", div_text)[0])
+
+        try:
+            value = float(re.findall(r"(\d?.\d{3}) TP", div_text)[0])
+        except:
+            raise Exception(f"Failed to get value from {div_text}")
 
         # Fix values
         if value > 10 and value < 100: 
@@ -158,12 +162,13 @@ class Auto(Best11):
         soup = make_soup(response)
         youth_coach_box = soup.find_all('table')[3].find_all('tr')[1]
 
-        try:
-            name = youth_coach_box.find('b').text
-        except:
-            # You do not have a youth coach
+        hire_coach_button = youth_coach_box.find('input', attrs={'value': 'Hire coach'})
+
+        # Button for hiring a new coach. Hence there is no current coach. So return False
+        if hire_coach_button:
             return False
 
+        name = youth_coach_box.find('b').text
         link = youth_coach_box.find('a', attrs={'onmouseover': True})
         pattern = r"Salary: (\d{1}\.?\d{0,3}) C"
         salary = int(re.findall(pattern, link['onmouseover'])[0])
@@ -201,7 +206,7 @@ class Auto(Best11):
             params={'pag': 'concediaza', 'confirmare': 1}
         )
 
-    def youthcoach_hire(self, first_name, last_name, salary=0, signon=0, ratings=(1,1,1,1), replace=False):
+    def youthcoach_hire(self, first_name, last_name, salary=None, signon=0, ratings=(1,1,1,1), replace=False):
         """
         Hires a youth coach
 
@@ -229,7 +234,11 @@ class Auto(Best11):
             if not replace: return False
             self.youthcoach_fire()
 
-        if salary != (legit_salary := self.__youthcoach_calculate_salary(ratings)):
+        # Convert back to money format (*1000)
+        legit_salary = self.__youthcoach_calculate_salary(ratings) * 1000
+        if salary is None: 
+            salary = legit_salary
+        elif salary != legit_salary:
             print(f"Salary should be {legit_salary}, not {salary}")
 
         # Generate coach to hire

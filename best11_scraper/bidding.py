@@ -6,6 +6,7 @@
 
 # Imports
 from time import sleep
+import random
 
 # Local Imports
 from club import Club
@@ -50,9 +51,17 @@ class ListedPlayer(Player):
             raise Exception("Tried to bid on unlisted player")
         self.session.request("GET", suburl="licitatie.php?", params=self.params)
 
-    def repeat_bid(self, max_bid='10.000 C', interval=30):
+    def repeat_bid(self, max_bid='10.000 C', interval=(15,65)):
         """ Repeatedly bid for a player while they're on the market
-        and do not exceed your maximum bid. """
+        and do not exceed your maximum bid. 
+        
+        Params:
+        max_bid (str)
+            The maximum bid you're prepared to go to
+            In Best11 money format (e.g. 1.200.000 C)
+        interval (tuple, len 2)
+            Time between checks in seconds, min and max
+        """
 
         user_club_name = USER_CLUB.club_name
 
@@ -68,22 +77,25 @@ class ListedPlayer(Player):
             if not (info := self.__transfer_info):
                 # Player is no longer listed
                 return
-            if info['current_offer'] + 20 > max_bid:
+            if (offer := info['current_offer']) + 20 > max_bid:
                 # Player bidding has exceeded your maximum bid
                 print("You have lost the bidding war!")
                 return
 
             ## You are actively bidding
             if (current_bidder := info['current_bidder']) == user_club_name:
-                print("You are the current bidder!")
+                pass
             else:
-                print(f"\nNew bid from {current_bidder}")
+                print(f"\nNew bid from {current_bidder}: {offer} C")
                 # You are not the current bidder. Make bid
                 print("Making higher bid...")
                 self.bid()
 
             # Wait 10 seconds before repeating
-            sleep(interval)
+            delay = random.randint(*interval)
+            print(f"Sleeping for {delay} seconds")
+
+            sleep(delay)
 
 class TransferList(Best11):
     def __init__(self):
@@ -104,8 +116,8 @@ class TransferList(Best11):
                 'AMB': 1, # Ambition
                 'INT': 1, # Intelligence
                 'REZ': 1, # Stamina
-                'AGR': 5, # Aggression (highest considered worst)
-                'VUL': 5, # Vulnerability (highest considered worst)
+                'AGR': 5, # Aggression (highest considered worst, hence redboy has default set to 5)
+                'VUL': 5, # Vulnerability (highest considered worst, hence redboy has default set to 5)
             }
         )
 
@@ -118,8 +130,12 @@ class TransferList(Best11):
         return [i for i in tl_players if i.talent >= min_talent and i.age <= max_age and i.skill_total >= min_skill and (not i.peer_advantage or i.peer_advantage >= peer_advantage)]
 
 if __name__ == "__main__":
-    t = TransferList()
-    results = t(min_talent=5, max_age=31, min_skill=45*3, peer_advantage=-50)
+    luuk = ListedPlayer(147298)
+    luuk.repeat_bid(max_bid='2.200.000 C')
 
-    for i in results:
-        i.print_details('club', 'position', 'age', 'skills', 'fixed', 'talent', 'form', 'peer_advantage')
+
+    # t = TransferList()
+    # results = t(min_talent=5, max_age=31, min_skill=10, peer_advantage=-500)
+
+    # for i in results:
+    #     i.print_details('club', 'position', 'age', 'skills', 'fixed', 'talent', 'form', 'peer_advantage')

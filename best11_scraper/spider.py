@@ -31,10 +31,10 @@ class Best11():
     def __init__(self, session=Session.load_session()):
         
         self.session = session
-
+        
         # Apply updates to files
         util.apply_update_timeago(self.fn_active_managers, self.__get_active_managers, days=1)
-        util.apply_update_timeago(self.fn_wealth_100, self.__get_wealthiest_clubs, minutes=30)            
+        util.apply_update_timeago(self.fn_wealth_100, self.__get_wealthiest_clubs, minutes=30)      
 
     def welcome(self):
         local_time = tz.to_string(pendulum.now(tz=tz.local))
@@ -62,6 +62,10 @@ class Best11():
         with open(self.fn_active_managers) as jf:
             active_managers = json.load(jf)
         return active_managers
+
+    @property
+    def active_club_ids(self):
+        return [i['club_id'] for i in self.active_managers]
 
     @property
     def wealth_100(self):
@@ -115,14 +119,15 @@ class Best11():
             with open(file_name) as jf:
                 active_managers = json.load(jf)
             return active_managers
-        return False          
+        return False
 
     def __get_active_managers(self):
         """
-        Returns a list of active managers
-        r-type: list
-        r-format: [club_ids...]; [int]
-        """        
+        Returns a dict containing active managers and their names
+        r-type: dict
+        r-format: {club_id: 200, club: 'Solent City', manager: 'callumEvans'}
+        """    
+
         # Make post request via Community > Users > Search > Search by manager
         request = self.session.request(
             "POST",
@@ -135,46 +140,43 @@ class Best11():
         # Grab the table containing table rows, which each contain data for...
         # User, Action, Club, Last Login
         table = soup.find_all('table')[2]
+        table_rows = table.find_all('tr')[1:]        
 
         # Manager considered inactive if last_logged_in before target_dt
         server_time = pendulum.now(tz=tz.server)
         target_dt = server_time.subtract(days=7)
 
         def is_active(tr):
-            """
-            Returns the club_id of the club if they are active
-            Else returns False
-            """
             # Get last logged in
-            last_logged_in = tr.find_all('td')[3].text
+            last_logged_in = tr.find_all('i')[-1].text
 
             # Bypass weird Best11 error wherby the year is 0 
             # NOTE These managers are no longer active regardless.
             year = int(last_logged_in.split('-')[0])
             if year == 0:
                 return False
-            
+
             # Convert to pendulum.datetime
             last_logged_in = pendulum.parse(last_logged_in, tz=tz.server)
             if last_logged_in < target_dt:
                 # Manager is inactive
                 return False
+            return True
 
-            # Manager is active
-            href = tr.find_all('td')[2].find('a').get('href')
-            club_id = util.get_id_from_href(href)
-            return club_id
+        def get_manager(tr):
+            """
+            Get the information about a single manager based on the row.
+            """
+            # Manager is active. Get their information.
+            manager = tr.find('b').text
+            club_link = tr.find('a', href=re.compile(r"vizualizare_club.php\?"))
+            club_name = club_link.text
+            club_id = util.get_id_from_href(club_link.get('href'))
+            
+            return {'club_id': club_id, 'club': club_name, 'manager': manager}
 
-        # Get all table rows in users search query soup
-        table_rows = table.find_all('tr')[1:]
-
-        # Run is_active() func for each manager
-        active_managers = []
-        while table_rows:
-            # Add each manager to the list if they are active
-            if n:= (is_active(table_rows.pop())):
-                active_managers.append(n)
-        return active_managers
+        managers = [get_manager(i) for i in table_rows if is_active(i)]
+        return managers
 
     def get_next_match(self, string=True):
         """
