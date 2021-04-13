@@ -259,7 +259,7 @@ class Session(requests.Session):
 
         # Delete session data
         with open(self.fn_session, 'wb') as pf:
-            pickle.dump({})
+            pickle.dump(pf)
             
         # Call func to get user_details again
         self.__get_user_details()
