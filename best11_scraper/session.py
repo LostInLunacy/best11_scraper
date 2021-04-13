@@ -13,12 +13,15 @@ import os
 # Local Imports
 import util
 from exceptions import LoginException
-
+from config import UserSettings
 
 
 def make_soup(request):
     """ Given a request object, convert into bs4 object. """
     return bs(request.text, 'lxml')
+
+USER_SETTINGS = UserSettings()
+
 
 class Session(requests.Session):
     """ 
@@ -29,9 +32,6 @@ class Session(requests.Session):
     # URLs
     MAIN_URL = "http://www.best11.org/"
     login_suburl = "login.php"
-
-    # File names
-    fn_user_details = "session_files/user_details.json"
 
     # Create session filepath
     # Parse the login_url in order to get netloc data for cache file
@@ -91,7 +91,12 @@ class Session(requests.Session):
         # Called by __repr__
         self.logged_in = False
 
-        self.__get_user_details()
+        self.__get_username_password()
+
+        # Get user details if none exist
+        if not all(self.user_details.values()):
+            USER_SETTINGS.user_details(empty_details=True)
+            self.__get_username_password()
 
     def __call__(self):
         """
@@ -99,6 +104,8 @@ class Session(requests.Session):
         """
         if self.logged_in:
             print("You're already logged in!")
+        elif not all(self.user_details.values()):
+            raise Exception("Incomplete user details. Cannot login!")
 
         self.__login_loop()
 
@@ -161,9 +168,9 @@ class Session(requests.Session):
                 self.__login()
             except LoginException:
                 if ask_reset:
-                    print(f"Could not login with details {self.user_details}")
+                    print(f"Could not login.")
                     if util.yn("Reset details?"):
-                        self.change_user_details()
+                        USER_SETTINGS.user_details()
                     else:
                         ask_reset = False
             else:
@@ -210,59 +217,17 @@ class Session(requests.Session):
         This is useful for logging in. """
         return {'user': self.username, 'pass': self.password}
 
-    def __get_user_details(self):
-        """
-        (1) Gets user's username and password from json file and returns it.
-        If it can't retrieve the information:
-        (2) Prompts the user for username and password
-        (3) Writes it to the json file
-        (4) Goes back to step 1
-        """
-        file_name = self.fn_user_details
+    def __get_username_password(self):
+        """ Set the instance vars <username> and <password> 
+        according to the corresponding values in the config file. """
+        self.username = USER_SETTINGS.config_parse.get('user_details', 'username', fallback=None)
+        self.password = USER_SETTINGS.config_parse.get('user_details', 'password', fallback=None)
 
-        while True:
-            try:
-                with open(file_name) as jf:
-                    user_details = json.load(jf)
-                self.username = user_details['user']
-                self.password = user_details['pass']
-                return
-            except:
-                # Get username and password from user input
-                print("Please enter your details:")
-                username = input("Username: ")
-                password = input("Password: ")
-                
-                if not all([username, password]):
-                    print("You entered blank information") 
-                    continue
-                else:
-                    user_details = {'user': username, 'pass': password}
-                
-                # Write these details to file
-                with open(file_name, 'w') as jf:
-                    json.dump(user_details, jf)
-
-    def change_user_details(self):
-        """ 
-        Allows a user to change their details by
-        (1) Deleting existing user_details and session data
-        (2) Then getting the user_details again.
-        """
-        # Reset json file
-        try:
-            with open(self.fn_user_details, 'w'):
-                pass
-        except FileNotFoundError:
-            # File did not need be reset - does not yet exist
-            pass
-
-        # Delete session data
-        with open(self.fn_session, 'wb') as pf:
-            pickle.dump(pf)
-            
-        # Call func to get user_details again
-        self.__get_user_details()
+    def change_user_details(self, empty_details=False):
+        """ Request user for new user_details. 
+        Afterwards, update the instance variables with the new config file values."""
+        USER_SETTINGS.user_details(empty_details)
+        self.__get_username_password()
 
     # --- Testing ---
     
