@@ -6,93 +6,112 @@ from club import UserClub
 from util import yn, TimeZones as tz
 
 from time import sleep
+from config import UserSettings
+
+"""
+min_potentials = 255
+min_peer_advantage = -32
+energy_warning = 100
+"""
+
+USER_CLUB = UserClub()
 
 
-user_club = UserClub()
+
+import pendulum
+
+from spider import Best11
+from club import UserClub
+from util import yn, TimeZones as tz
+
+from time import sleep
 
 
-class Training(Best11):
+USER_CLUB = UserClub()
+NEXT_MATCH = USER_CLUB.get_next_match(string=False)
 
-    suburl_training = "antrenament.php?"
 
-    def __init__(self, skill_cutoff=250, peer_advantage_cutoff=-30, energy_warning=100):
-        super().__init__()
+class TrainingApprovedList(set):
+    
+    def __init__(self):
+        super().__init__(USER_CLUB.player_objs)
 
-        # Get user club's players
-        self.players = user_club.player_objs
+        self.hours_until_next_match = self.__hours_until_next_match()
+        self.settings = {
+            k:v for k, v in UserSettings().get_section_items('training').items() if isinstance(v, (int, float))
+        }
 
-        # Set skill cutoff
-        self.skill_cutoff = skill_cutoff
-        self.peer_advantage_cutoff = peer_advantage_cutoff
-        self.energy_warning = energy_warning
+        self.original_list = self.copy()
 
-        # Hours until next match
-        self.hours_until = self.__hours_until_next_match()
+        # Run assessments on players, removing any that cannot or shouldn't be trained
+        [x() for x in self.assessments]
+        
+        # Print out info about rejected players
+        self.do_printouts()
 
-    def __call__(self):
-        """ Train players. """
-        if not (training_approved := [p for p in self.players if self.assess_player(p)]):
-            print("No players to be trained :(")
-            return False
+    @property
+    def assessments(self):
+        return [
+            self.get_maxed_out, 
+            self.get_trained_today, 
+            self.get_min_potentials, 
+            self.get_min_peer_advantage, 
+            self.get_low_energy
+        ]
 
-        divider = '\n-'
-        print(f"\nThe following players have been approved for {self.__class__.__name__}:{divider}{divider.join([i.player_name for i in training_approved])}")
+    def do_printouts(self):
+        self.pretty_print(self.trained_today, "Already trained today: ")
+        self.pretty_print(self.low_potentials, "Rejected due to low potentials: ")
+        self.pretty_print(self.low_peer_advantage, "Rejected due to low peer advantage: ")
+        self.pretty_print(self.low_energy, "Rejected due to low energy: ")
+        self.pretty_print(self, "Ready for training: ")
 
-        # Confirmation
-        if not yn("Continue?"): return
+    @staticmethod
+    def pretty_print(items, title):
+        if not items:
+            return
+        print(title)
+        [print(f"- {str(i)}") for i in items]
+        print()
 
-        # Train all players in list
-        [self.train_player(i) for i in training_approved]
+    def get_maxed_out(self):
+        self.maxed_out = {i for i in self if not any (i.is_trainable)}
+        self -= self.maxed_out
 
-    def assess_player(self, player):
-        """ Determine whether a player can and should be trained. """
+    def get_trained_today(self):
+        self.trained_today = {i for i in self if i.trained_today}
+        self -= self.trained_today
 
-        name = player.player_name
+    def get_min_potentials(self):
+        if not (min_potential_setting := self.settings.get('min_potentials')):
+            self.low_potentials = set()
+            return
+        self.low_potentials = {i for i in self if sum(i.potential) < min_potential_setting}
+        self -= self.low_potentials
 
-        # Request can be refused. Hence, try; except.
-        while True:
-            try:
-                # -- Assess if player can be trained --
-                if not any(player.is_trainable):
-                    # If no skills are trainable, player has reached their potential
-                    # print(f"{name} is maxed out already!")
+    def get_min_peer_advantage(self):
+        if not (min_peer_advantage := self.settings.get('min_peer_advantage')):
+            self.low_peer_advantage = set()
+            return
+        self.low_peer_advantage = {i for i in self if i.peer_advantage < min_peer_advantage}
+        self -= self.low_peer_advantage
+
+    def get_low_energy(self):
+        if not (energy_warning := self.settings.get('energy_warning')):
+            self.energy_warning = set()
+            return
+
+        def energy_fail(player):
+            if (final_energy := self.resulting_energy(player)) < energy_warning:
+                # Player is tired
+                print(f"""\nWould you like to train {player.player_name} [ID: {player.player_id}]?\
+                They would be at {final_energy}% energy at the start of your next match.""")
+                if not yn():
+                    # User does not want tired player trained
                     return False
-
-                # -- Assess if trained today --
-                elif player.trained_today:
-                    # Player can't be trained twice!
-                    # print(f"{name} has already been trained today")
-                    return False
-
-                # -- Assess potentials --
-                elif sum(player.potential) < self.skill_cutoff:
-                    # Player will not be trained; their skills are too low.
-                    # print(f"{name} does not meet potential threshold")
-                    return False
-
-                # -- Assess peer advantage --
-                elif player.peer_advantage < self.peer_advantage_cutoff:
-                    # Player will not be trained; they are too far behind their peers
-                    # print(f"{name} does not meet peer advantage threshold")
-                    return False
-
-                # -- Assess energy for next match if trained --
-                elif (final_energy := self.resulting_energy(player)) < self.energy_warning:
-                    # Player is tired
-                    print(f"""\nWould you like to train {player.player_name} [ID: {player.player_id}]?\
-                    They would be at {final_energy}% energy at the start of your next match.""")
-                    if not yn():
-                        # User does not want tired player trained
-                        return False
-                    
-                # -- Player has passed training assessment --
-                return True
-            except:
-                sleep(.5)
-
-    def player_above_skill_cutoff(self, player):
-        """ Returns True if the player is above the skill cutoff, else False. """
-        return sum(player.potential) >= self.skill_cutoff
+            return True
+        self.low_energy = {i for i in self if not energy_fail(i)}
+        self -= self.low_energy
 
     def __hours_until_next_match(self):
         """ 
@@ -100,10 +119,9 @@ class Training(Best11):
         rtype: int 
         """
         now = pendulum.now(tz=tz.server)
-        next_match = self.get_next_match(string=False)
 
         # Take off one because you will not regain energy in the final hour
-        hours_until = next_match.diff(now).in_hours()
+        hours_until = NEXT_MATCH.diff(now).in_hours()
         return hours_until
 
     def resulting_energy(self, player_obj):
@@ -112,8 +130,30 @@ class Training(Best11):
         will have after being trained, by the next match. 
         """
         energy = player_obj.energy
-        final_energy = (energy + (self.hours_until * 2) - 10)
+        final_energy = (energy + (self.hours_until_next_match * 2) - 10)
         return final_energy
+    
+        
+class Training(Best11):
+
+    suburl_training = "antrenament.php?"
+
+    def __init__(self):
+        self.players = TrainingApprovedList()
+
+    def __call__(self):
+        if not self.players:
+            print("No players to be trained :(")
+            return False
+
+        divider = '\n-'
+        print(f"\nThe following players have been approved for {self.__class__.__name__}:{divider}{divider.join([i.player_name for i in self.players])}")
+
+        # Confirmation
+        if not yn("Continue?"): return
+
+        # Train all players in list
+        [self.train_player(i) for i in self.players]
 
     def train_request(self, player_obj, skill_num):
         """
@@ -225,84 +265,25 @@ class Training(Best11):
             raise Exception(f"Could not find skill to train for {player_obj.player_name}")
         return skill_to_train
 
+class ExtraTrainingAppprovedList(TrainingApprovedList):
+    def __init__(self):
+        super().__init__()
 
-class ExtraTraining(Training):
+    @property
+    def assessments(self):
+        pass
 
-    suburl_extra_training = 'extra_practice.php?'
+    def get_high_exp(self):
+        if not (max_exp_setting := self.settings.get('energy_warning')):
+            self.energy_warning = set()
+            return
+        self.max_exp = {i for i in self if i.exp > max_exp_setting}
+        self -= self.max_exp
+
+
     
-    def __init__(self, skill_cutoff=250, peer_advantage_cutoff=-30, energy_warning=100, max_exp=200):
-        super().__init__(skill_cutoff, peer_advantage_cutoff)
-        self.max_exp = max_exp
-
-    def assess_player(self, player):
-        """ Determine whether a player can and should be trained. """
-
-        name = player.player_name
-
-        # Request can be refused. Hence, try; except.
-        while True:
-            try:
-                # -- Assess if player can be trained --
-                if player.exp >= 500:
-                    # If no skills are trainable, player has reached their potential
-                    # print(f"{name} is maxed out already!")
-                    return False
-
-                # -- Assess if player's exp too high --
-                elif player.exp >= self.max_exp:
-                    # print(f"{name} has already reached max exp set for extra training")
-                    return False
-
-                # -- Assess if trained this week --
-                elif player.extra_trained_thisweek:
-                    # Player can't be trained twice!
-                    # print(f"{name} has already received extra training this week")
-                    return False
-
-                # -- Assess potentials --
-                elif sum(player.potential) < self.skill_cutoff:
-                    # Player will not be trained; their skills are too low.
-                    # print(f"{name} does not meet potential threshold")
-                    return False
-
-                # -- Assess peer advantage --
-                elif player.peer_advantage < self.peer_advantage_cutoff:
-                    # Player will not be trained; they are too far behind their peers
-                    # print(f"{name} does not meet peer advantage threshold")
-                    return False
-
-                # -- Assess energy for next match if trained --
-                elif (final_energy := self.resulting_energy(player)) < 100:
-                    # Player is tired
-                    print(f"""\nWould you like to train {player.player_name} [ID: {player.player_id}]?\
-                    They would be at {final_energy}% energy at the start of your next match.""")
-                    if not yn():
-                        # User does not want tired player trained
-                        return False
-                    
-                # -- Player has passed training assessment --
-                return True
-            except:
-                sleep(.5)
-
-    def train_player(self, player_obj):
-        print(f"Applying training to {player_obj.player_name}") 
-        self.session.request(
-            "GET",
-            suburl=self.suburl_extra_training,
-            params=player_obj.params
-        )
-
-    def resulting_energy(self, player_obj):
-        """ 
-        Returns the energy level that the player
-        will have after being trained, by the next match. 
-        """
-        final_energy = super().resulting_energy(player_obj)
-        if player_obj.trained_today: final_energy -= 10
-        return final_energy
-
 
 if __name__ == "__main__":
-    t = Training()
-    t()
+    TrainingApprovedList()
+
+

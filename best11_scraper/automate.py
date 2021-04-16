@@ -31,6 +31,7 @@ class Auto(Best11):
     """
     def get_daily_bonus(self, choice=1):
         """ Collects the daily (login) bonus. """
+
         if not choice in range(1,6):
             raise ValueError("Choice must be in inclusive range 1-5")
         
@@ -50,6 +51,15 @@ class Auto(Best11):
 
     def get_bonus_from_partners(self, club_id=USER_CLUB.club_id):
         """ Collects the bonus from partners. """
+
+        ## Check bonus hasn't been collected already
+        response = self.session.request(
+            "GET",
+            suburl=self.suburl_clubpage
+        )
+        credits_balance_text = make_soup(response).find_all('table')[20]
+        if not re.findall(r"Get bonus", str(credits_balance_text)):
+            raise Exception("Already collected Bonus from Partners today")
 
         ## Get valid partner_ids
         response = self.session.request(
@@ -74,7 +84,8 @@ class Auto(Best11):
         response = self.session.request(
             "POST",
             'antrenor.php?',
-            params={'pag': 'antrenament', 'slot': slot_num}
+            params={'pag': 'antrenament', 'slot': slot_num},
+            data={'submit': 'Perform training'}
         )
 
         soup = make_soup(response)
@@ -107,12 +118,13 @@ class Auto(Best11):
         if only_slot and not current_techstaff.get(1):
             raise Exception(f"No coach hired in selected slot: {only_slot}")
 
-        slots_to_train = [only_slot] if only_slot else (1,2)
+        slots_to_train = [only_slot] if only_slot else [1,2]
 
         total_tp_earnt = 0
         for slot in slots_to_train:
             total_tp_earnt += self.__get_tp_from_slot(slot)
 
+        print(f"TP earnt: {total_tp_earnt}")
         return total_tp_earnt
 
     """
@@ -180,6 +192,7 @@ class Auto(Best11):
 
         return {'name': name, 'salary': salary, 'ratings': star_ratings}
 
+    # TODO change to setter method?
     def youthcoach_rename(self, first_name, last_name):
         """
         Renames your youth coach
@@ -418,7 +431,7 @@ class Auto(Best11):
         name = psych_box.find('b').text
         
         link = psych_box.find('a', attrs={'onmouseover': True})
-        pattern = r"Level: (\d{1})/5 <br> Consultation: (\d{1,3}\.\d{3}) C"
+        pattern = r"Level: (\d{1})/5 <br> Consultation: (\d{0,3}?\.?\d{1,3}) C"
         level, consultation = re.findall(pattern, link['onmouseover'])[0]
 
         level = int(level)
@@ -457,7 +470,9 @@ class Auto(Best11):
         pass
 
     def psych_hire(self, first_name, last_name, salary=0, signon=0, level=1):
-        
+        """
+        Hire a psychologist
+        """
         # Generate coach to hire
         self.session.request(
             "POST",
@@ -619,7 +634,7 @@ class Auto(Best11):
         return int(selected.get('value'))
 
     @medical_allowance.setter
-    def medical_department_allowance(self, level=1):
+    def medical_allowance(self, level=1):
         """
         1: 10.000 C
         2: 25.000 C

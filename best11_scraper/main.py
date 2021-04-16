@@ -1,55 +1,61 @@
 
 from time import sleep
-
 from automate import Auto
 from morale import MoraleBoost
 from training import Training, ExtraTraining
 from config import UserSettings
 from util import print_divider as print_d
 
-USER_SETTINGS = UserSettings()
+APP_NAME = "Best11Scraper"
+__author__ = "callumEvans (github: punkgazer)"
+__version__ = 0.201
 
+USER_SETTINGS = UserSettings()
+ 
 
 def main():
     auto = Auto()
     
-    if USER_SETTINGS.config_parse.getboolean('daily_bonus', 'on'):
-        print_d("Daily bonus.")
+    if USER_SETTINGS.get('daily_bonus', 'on'):
+        print_d("Getting daily bonus...")
         auto.get_daily_bonus()
 
-    if USER_SETTINGS.config_parse.getboolean('bonus_from_partners', 'on'):
+    if USER_SETTINGS.get('bonus_from_partners', 'on'):
         print_d("Getting bonus from partners...")
         auto.get_bonus_from_partners()
 
-    if USER_SETTINGS.config_parse.getboolean('club_sales', 'on'):
+    if USER_SETTINGS.get('club_sales', 'on'):
         print_d("Getting club sales...")
         auto.get_club_sales()
 
-    if USER_SETTINGS.config_parse.getboolean('get_training_points', 'on'):
+    if USER_SETTINGS.get('get_training_points', 'on'):
         print_d("Getting TP...")
-        threshold = USER_SETTINGS.config_parse.get('get_training_points', 'threshold')
-        auto.get_training_points()
+        TP_settings = USER_SETTINGS.get_section_items('get_training_points')
+        auto.get_training_points(**TP_settings)
 
-    if USER_SETTINGS.config_parse.getboolean('morale', 'on'):
-        print_d("Getting morale boost...")
-        morale_boost = MoraleBoost()
-        morale_boost.__call__()
+    # if USER_SETTINGS.get('morale', 'on'):
+    #     print_d("Getting morale boost...")
+    #     morale_boost = MoraleBoost()
+    #     morale_boost.__call__()
 
-    if USER_SETTINGS.config_parse.getboolean('training', 'on'):
+    if USER_SETTINGS.get('training', 'on'):
         print_d("Performing training...")
-        training_settings = {k:v for k, v in USER_SETTINGS.get_all_section('training').items() if k != 'on'}
-        training = Training()
-        training.__call__(**training_settings)
+        training_settings = USER_SETTINGS.get_section_items('training')
+        training = Training(**training_settings)
+        training.__call__()
 
-    if USER_SETTINGS.config_parse.getboolean('extra_training', 'on'):
-        print_d("Performing extra training...")
-        et_settings = {k:v for k, v in USER_SETTINGS.get_all_section('extra_training').items() if k != 'on'}
-        extra_training = ExtraTraining()
-        extra_training.__call__(**et_settings)
+    # if USER_SETTINGS.get('extra_training', 'on'):
+    #     print_d("Performing extra training...")
+    #     et_settings = USER_SETTINGS.get_section_items('extra_training')
+    #     extra_training = ExtraTraining()
+    #     extra_training.__call__(**et_settings)
 
 
 def menu_system():
     """ The main menu for the program. """
+
+    print()
+    print_d(f"Main Menu | {APP_NAME} v{__version__}")
 
     options = {
         'Quit': quit,
@@ -80,6 +86,7 @@ def menu_system():
 
 if __name__ == "__main__":
     menu_system()
+    
 
 
 

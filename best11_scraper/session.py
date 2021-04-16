@@ -220,8 +220,8 @@ class Session(requests.Session):
     def __get_username_password(self):
         """ Set the instance vars <username> and <password> 
         according to the corresponding values in the config file. """
-        self.username = USER_SETTINGS.config_parse.get('user_details', 'username', fallback=None)
-        self.password = USER_SETTINGS.config_parse.get('user_details', 'password', fallback=None)
+        self.username = USER_SETTINGS.get('user_details', 'username', fallback=None)
+        self.password = USER_SETTINGS.get('user_details', 'password', fallback=None)
 
     def change_user_details(self, empty_details=False):
         """ Request user for new user_details. 
