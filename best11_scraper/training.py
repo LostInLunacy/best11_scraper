@@ -8,23 +8,7 @@ from util import yn, TimeZones as tz
 from time import sleep
 from config import UserSettings
 
-"""
-min_potentials = 255
-min_peer_advantage = -32
-energy_warning = 100
-"""
-
 USER_CLUB = UserClub()
-
-
-
-import pendulum
-
-from spider import Best11
-from club import UserClub
-from util import yn, TimeZones as tz
-
-from time import sleep
 
 
 USER_CLUB = UserClub()
@@ -131,14 +115,14 @@ class TrainingApprovedList(set):
         """
         energy = player_obj.energy
         final_energy = (energy + (self.hours_until_next_match * 2) - 10)
-        return final_energy
-    
+        return final_energy  
         
 class Training(Best11):
 
     suburl_training = "antrenament.php?"
 
     def __init__(self):
+        super().__init__()
         self.players = TrainingApprovedList()
 
     def __call__(self):
@@ -146,7 +130,8 @@ class Training(Best11):
             print("No players to be trained :(")
             return False
 
-        divider = '\n-'
+        divider = '\n- '
+        # TODO add player positon to string
         print(f"\nThe following players have been approved for {self.__class__.__name__}:{divider}{divider.join([i.player_name for i in self.players])}")
 
         # Confirmation
@@ -271,7 +256,22 @@ class ExtraTrainingAppprovedList(TrainingApprovedList):
 
     @property
     def assessments(self):
-        pass
+        return [
+            self.get_maxed_out, 
+            self.get_trained_today,
+            self.get_high_exp,
+            self.get_min_potentials, 
+            self.get_min_peer_advantage, 
+            self.get_low_energy
+        ]
+
+    def do_printouts(self):
+        self.pretty_print(self.trained_today, "Already trained today: ")
+        self.pretty_print(self.low_potentials, "Already reached EXP threshold: ")
+        self.pretty_print(self.low_potentials, "Rejected due to low potentials: ")
+        self.pretty_print(self.low_peer_advantage, "Rejected due to low peer advantage: ")
+        self.pretty_print(self.low_energy, "Rejected due to low energy: ")
+        self.pretty_print(self, "Ready for training: ")
 
     def get_high_exp(self):
         if not (max_exp_setting := self.settings.get('energy_warning')):
@@ -279,9 +279,6 @@ class ExtraTrainingAppprovedList(TrainingApprovedList):
             return
         self.max_exp = {i for i in self if i.exp > max_exp_setting}
         self -= self.max_exp
-
-
-    
 
 if __name__ == "__main__":
     TrainingApprovedList()

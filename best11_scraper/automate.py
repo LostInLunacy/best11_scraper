@@ -15,13 +15,16 @@ from club import Club
 USER_CLUB = Club(manager='user')
 
 class Auto(Best11):
-
+    
     suburl_facilities = 'facilitati.php'
     suburl_finances = 'finante.php'
     suburl_clubpage = 'club.php'
 
+    # This suburl is used purely for requests
     suburl_youthcoach = 'antrenor_juniori.php?'
-    suburl_sponsor = 'sponsor.php?'    
+
+    suburl_sponsor = 'sponsor.php?'
+    suburl_dailybonus = 'bonus_zilnic.php?' 
 
     def __init__(self):
         super().__init__()
@@ -30,27 +33,87 @@ class Auto(Best11):
     *** --- Dailies --- ***
     """
     def get_daily_bonus(self, choice=1):
-        """ Collects the daily (login) bonus. """
+        """
+        Collects the Daily Bonus that you get for logging in
 
+        1. Checks if bonus corrected already
+            -> return False
+        2. Collects bonus
+        3. TODO Print out the bonus received
+
+        r-type: None
+        """
         if not choice in range(1,6):
             raise ValueError("Choice must be in inclusive range 1-5")
+
+        # Check whether collected already
+        response = self.session.request(
+            "GET",
+            suburl=self.suburl_dailybonus
+        )
+        soup = make_soup(response)
+        red_font = soup.find('font', attrs={'color': 'red'})
+        if red_font and red_font.text.startswith("You've already collected the daily bonus"):
+            print("Daily bonus was already collected")
+            return False
         
         self.session.request(
             "GET",
-            suburl='bonus_zilnic.php?',
+            suburl=self.suburl_dailybonus,
             params={'cadou': choice}
         )
 
+        # TODO get amount collected
+
     def get_club_sales(self):
-        """ Collects the club sales. """
+        """ 
+        Collects the club sales.
+
+        1. Checks if Club Sales have been collected already
+            -> return False
+        2. Collects Club Sales
+        3. Prints out amount earned
+
+        r-type: None
+        """
+        # Check whether collected already
+        def get_club_sales_table():
+            response = self.session.request(
+                "GET",
+                suburl='magazinul_clubului.php'
+            )
+            return make_soup(response).find('table')
+
+        table = get_club_sales_table()
+        text = table.find_all('font')[1].text
+        if text == "Yesterday earnings:":
+            print("Club Sales already collected")
+            return False
+
+        # Request to collect club sales
         self.session.request(
             "GET",
             suburl='magazinul_clubului.php?',
             params={'pag': 'colectare'}
         )
 
+        # Request to get amount collected
+        table = get_club_sales_table()
+        if not table.find('font').text == "Yesterday earnings:":
+            raise Exception("Unable to collect club sales")
+        amount_earned = self.get_value_from_string(table.find_all('font')[2].text)
+        print(f"Collect Club Sales\nAmount earned: {amount_earned}")
+
     def get_bonus_from_partners(self, club_id=USER_CLUB.club_id):
-        """ Collects the bonus from partners. """
+        """
+        Collects the Bonus from Partners
+
+        1. Checks if bonus collected already
+            -> return False
+        2. Collects Bonus from Partners
+        
+        r-type: None
+        """
 
         ## Check bonus hasn't been collected already
         response = self.session.request(
@@ -59,7 +122,8 @@ class Auto(Best11):
         )
         credits_balance_text = make_soup(response).find_all('table')[20]
         if not re.findall(r"Get bonus", str(credits_balance_text)):
-            raise Exception("Already collected Bonus from Partners today")
+            print("Already collected Bonus from Partners today")
+            return False
 
         ## Get valid partner_ids
         response = self.session.request(
@@ -81,6 +145,13 @@ class Auto(Best11):
         [get_bonus(partner) for partner in valid_partner_ids]   
         
     def __get_tp_from_slot(self, slot_num):
+        """
+        Collects TP from a given slot.
+        Returns the amount earned
+
+        r-type: int
+        """
+
         response = self.session.request(
             "POST",
             'antrenor.php?',
@@ -104,8 +175,14 @@ class Auto(Best11):
         
         return int(value)
 
-    def get_training_points(self, only_slot=None, max_tp=False):
-        """ Collects training points. """
+    def get_training_points(self, only_slot=False, max_tp=False):
+        """ 
+        Collects Training Points (TP)
+
+        1. TODO check of TP collected already for one or both technical staff
+        2. Collect TP
+        3. Prints out the amount of TP earned. TODO make float?
+        """
         # TODO not allow if training session already completed
 
         if max_tp and self.tp_balance > max_tp:
@@ -169,6 +246,15 @@ class Auto(Best11):
     """
     @property
     def youthcoach(self):
+        """
+        Returns information about the current youth coach
+            - Name
+            - Salary
+            - Ratings
+        If no youth coach is employed, return False
+
+        r-type: dict
+        """
 
         response = self.session.request("GET", self.suburl_facilities)
         soup = make_soup(response)
@@ -192,10 +278,13 @@ class Auto(Best11):
 
         return {'name': name, 'salary': salary, 'ratings': star_ratings}
 
-    # TODO change to setter method?
     def youthcoach_rename(self, first_name, last_name):
         """
         Renames your youth coach
+        r-type: None
+
+        TODO verify that name is changed
+            Return True if successful else False
         """
         if not (current_youthcoach := self.youthcoach):
             raise Exception("Cannot rename coach that doesn't exist!")
@@ -210,7 +299,12 @@ class Auto(Best11):
         )
 
     def youthcoach_fire(self):
-        """ Fire your current youth coach. """
+        """
+        Fires youth current youth coach
+        """
+        if not self.youthcoach:
+            print("There is no youth coach to fire!")
+            return False
 
         # Make confirmation to fire youth coach
         self.session.request(

@@ -2,7 +2,7 @@
 from time import sleep
 from automate import Auto
 from morale import MoraleBoost
-from training import Training, ExtraTraining
+from training import Training
 from config import UserSettings
 from util import print_divider as print_d
 
@@ -28,20 +28,19 @@ def main():
         print_d("Getting club sales...")
         auto.get_club_sales()
 
-    if USER_SETTINGS.get('get_training_points', 'on'):
-        print_d("Getting TP...")
-        TP_settings = USER_SETTINGS.get_section_items('get_training_points')
-        auto.get_training_points(**TP_settings)
+    # NOTE need way of determining if already been done
+    # if USER_SETTINGS.get('get_training_points', 'on'):
+    #     print_d("Getting TP...")
+    #     TP_settings = USER_SETTINGS.get_section_items('get_training_points')
+    #     auto.get_training_points(**TP_settings)
 
-    # if USER_SETTINGS.get('morale', 'on'):
-    #     print_d("Getting morale boost...")
-    #     morale_boost = MoraleBoost()
-    #     morale_boost.__call__()
+    if USER_SETTINGS.get('morale', 'on'):
+        print_d("Getting morale boost...")
+        morale_boost = MoraleBoost()
+        morale_boost.__call__()
 
     if USER_SETTINGS.get('training', 'on'):
-        print_d("Performing training...")
-        training_settings = USER_SETTINGS.get_section_items('training')
-        training = Training(**training_settings)
+        training = Training()
         training.__call__()
 
     # if USER_SETTINGS.get('extra_training', 'on'):
