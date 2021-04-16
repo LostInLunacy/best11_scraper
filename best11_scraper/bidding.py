@@ -7,6 +7,7 @@
 # Imports
 from time import sleep
 import random
+import pendulum
 
 # Local Imports
 from club import Club
@@ -27,7 +28,7 @@ class ListedPlayer(Player):
             raise Exception("Player not listed")
 
     @property
-    def __transfer_info(self):
+    def transfer_info(self):
         if not self.listed:
             print("Cannot get bidding info for unlisted player!")
             return False
@@ -44,6 +45,23 @@ class ListedPlayer(Player):
             'current_bidder': current_bidder,
             'deadline': deadline
         }
+
+    @property
+    def deadline(self):
+        return self.transfer_info['deadline']
+
+    @property
+    def formatted_deadline(self):
+        str_to_pendulum = lambda deadline_string: pendulum.from_format(deadline_string, 'YYYY-MM-DD HH:mm:ss')
+        return str_to_pendulum(self.deadline)
+
+    @property
+    def current_bidder(self):
+        return self.transfer_info['current_bidder']
+
+    @property
+    def current_offer(self):
+        return self.transfer_info['current_offer']
 
     def bid(self):
         """ Place a bid on the player. """
@@ -74,7 +92,7 @@ class ListedPlayer(Player):
 
         while True:
 
-            if not (info := self.__transfer_info):
+            if not (info := self.transfer_info):
                 # Player is no longer listed
                 return
             if (offer := info['current_offer']) + 20 > max_bid:
@@ -130,8 +148,8 @@ class TransferList(Best11):
         return [i for i in tl_players if i.talent >= min_talent and i.age <= max_age and i.skill_total >= min_skill and (not i.peer_advantage or i.peer_advantage >= peer_advantage)]
 
 if __name__ == "__main__":
-    luuk = ListedPlayer(147298)
-    luuk.repeat_bid(max_bid='2.200.000 C')
+    luuk = ListedPlayer(151212)
+    luuk.repeat_bid(max_bid='1.400.000 C', interval=(50,90))
 
 
     # t = TransferList()

@@ -250,7 +250,7 @@ class Player(Best11):
             self.index_dict = { k:(v if k in ('player_name', 'club') else v+3) for k, v in index_dict.items() }
 
     def __str__(self):
-        return f"[ID: {self.player_id}] {self.player_name}"
+        return f"[ID: {self.player_id}] {'-'.join([str(i) for i in self.skill])} {self.player_name}"
 
     # -- Executed during __init__() --
 
@@ -599,6 +599,9 @@ class UserPlayer(Player):
     def __init__(self, player_id):
         # Get the default information for the player
         super().__init__(player_id)
+
+    def __str__(self):
+        return f"[ID: {self.player_id}] {'-'.join([str(i) for i in self.skill])} ({'-'.join([str(i) for i in self.potential])}) {self.player_name}"
 
     @property
     def _profile(self):

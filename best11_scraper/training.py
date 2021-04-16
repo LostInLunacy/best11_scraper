@@ -4,28 +4,27 @@ import pendulum
 from spider import Best11
 from club import UserClub
 from util import yn, TimeZones as tz
-
-from time import sleep
 from config import UserSettings
-
-USER_CLUB = UserClub()
-
 
 USER_CLUB = UserClub()
 NEXT_MATCH = USER_CLUB.get_next_match(string=False)
 
 
 class TrainingApprovedList(set):
-    
+    """
+    An object that consists of players who are approved for training
+    It considers factors such as whether a player can be trained,
+    As well as factors that affect whether a manager would like to train a player
+    - Potentials
+    - Current skill related to peers
+    - Tiredness
+    """
     def __init__(self):
         super().__init__(USER_CLUB.player_objs)
+        self.original_list = self.copy()
 
         self.hours_until_next_match = self.__hours_until_next_match()
-        self.settings = {
-            k:v for k, v in UserSettings().get_section_items('training').items() if isinstance(v, (int, float))
-        }
-
-        self.original_list = self.copy()
+        self.settings = self.__get_settings()
 
         # Run assessments on players, removing any that cannot or shouldn't be trained
         [x() for x in self.assessments]
@@ -33,18 +32,21 @@ class TrainingApprovedList(set):
         # Print out info about rejected players
         self.do_printouts()
 
+    def __get_settings(self):
+        return {k:v for k, v in UserSettings().get_section_items('training').items() if isinstance(v, (int, float))}
+
     @property
     def assessments(self):
         return [
             self.get_maxed_out, 
-            self.get_trained_today, 
+            self.get_trained_already, 
             self.get_min_potentials, 
             self.get_min_peer_advantage, 
             self.get_low_energy
         ]
 
     def do_printouts(self):
-        self.pretty_print(self.trained_today, "Already trained today: ")
+        self.pretty_print(self.trained_already, "Already trained today: ")
         self.pretty_print(self.low_potentials, "Rejected due to low potentials: ")
         self.pretty_print(self.low_peer_advantage, "Rejected due to low peer advantage: ")
         self.pretty_print(self.low_energy, "Rejected due to low energy: ")
@@ -62,9 +64,9 @@ class TrainingApprovedList(set):
         self.maxed_out = {i for i in self if not any (i.is_trainable)}
         self -= self.maxed_out
 
-    def get_trained_today(self):
-        self.trained_today = {i for i in self if i.trained_today}
-        self -= self.trained_today
+    def get_trained_already(self):
+        self.trained_already = {i for i in self if i.trained_today}
+        self -= self.trained_already
 
     def get_min_potentials(self):
         if not (min_potential_setting := self.settings.get('min_potentials')):
@@ -123,7 +125,10 @@ class Training(Best11):
 
     def __init__(self):
         super().__init__()
-        self.players = TrainingApprovedList()
+        self.players = self.get_players()
+
+    def get_players(self):
+        return TrainingApprovedList()
 
     def __call__(self):
         if not self.players:
@@ -132,7 +137,7 @@ class Training(Best11):
 
         divider = '\n- '
         # TODO add player positon to string
-        print(f"\nThe following players have been approved for {self.__class__.__name__}:{divider}{divider.join([i.player_name for i in self.players])}")
+        # print(f"\nThe following players have been approved for {self.__class__.__name__}:{divider}{divider.join([i.player_name for i in self.players])}")
 
         # Confirmation
         if not yn("Continue?"): return
@@ -250,35 +255,65 @@ class Training(Best11):
             raise Exception(f"Could not find skill to train for {player_obj.player_name}")
         return skill_to_train
 
-class ExtraTrainingAppprovedList(TrainingApprovedList):
+class ExtraTrainingApprovedList(TrainingApprovedList):
+
     def __init__(self):
         super().__init__()
+
+    def __get_settings(self):
+        return {k:v for k, v in UserSettings().get_section_items('extra_training').items() if isinstance(v, (int, float))}
 
     @property
     def assessments(self):
         return [
-            self.get_maxed_out, 
-            self.get_trained_today,
+            self.get_maxed_out,
             self.get_high_exp,
+            self.get_trained_already,
             self.get_min_potentials, 
             self.get_min_peer_advantage, 
             self.get_low_energy
         ]
 
     def do_printouts(self):
-        self.pretty_print(self.trained_today, "Already trained today: ")
+        self.pretty_print(self.trained_already, "Already trained this week: ")
         self.pretty_print(self.low_potentials, "Already reached EXP threshold: ")
         self.pretty_print(self.low_potentials, "Rejected due to low potentials: ")
         self.pretty_print(self.low_peer_advantage, "Rejected due to low peer advantage: ")
         self.pretty_print(self.low_energy, "Rejected due to low energy: ")
         self.pretty_print(self, "Ready for training: ")
 
+    def get_trained_already(self):
+        self.trained_already = {i for i in self if i.extra_trained_thisweek}
+        self -= self.trained_already
+
     def get_high_exp(self):
-        if not (max_exp_setting := self.settings.get('energy_warning')):
+        if not (max_exp_setting := self.settings.get('max_exp')):
             self.energy_warning = set()
             return
         self.max_exp = {i for i in self if i.exp > max_exp_setting}
         self -= self.max_exp
+
+class ExtraTraining(Training):
+
+    suburl_extra_training = 'extra_practice.php?'
+    
+    def __init__(self):
+        super().__init__()
+
+    def get_players(self):
+        return ExtraTrainingApprovedList()
+
+    def __call__(self):
+        super().__call__()
+
+    def train_player(self, player_obj):
+        print(f"Applying training to {player_obj.player_name}") 
+        self.session.request(
+            "GET",
+            suburl=self.suburl_extra_training,
+            params=player_obj.params
+        )
+
 
 if __name__ == "__main__":
     TrainingApprovedList()

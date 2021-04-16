@@ -54,7 +54,7 @@ class Auto(Best11):
         soup = make_soup(response)
         red_font = soup.find('font', attrs={'color': 'red'})
         if red_font and red_font.text.startswith("You've already collected the daily bonus"):
-            print("Daily bonus was already collected")
+            print("Daily bonus was already collected today")
             return False
         
         self.session.request(
@@ -85,9 +85,9 @@ class Auto(Best11):
             return make_soup(response).find('table')
 
         table = get_club_sales_table()
-        text = table.find_all('font')[1].text
-        if text == "Yesterday earnings:":
-            print("Club Sales already collected")
+        if not table.find('form', attrs={'action': 'magazinul_clubului.php?pag=colectare'}):
+            # Already collected today
+            print("Club Sales already collected today.")
             return False
 
         # Request to collect club sales
@@ -99,7 +99,7 @@ class Auto(Best11):
 
         # Request to get amount collected
         table = get_club_sales_table()
-        if not table.find('font').text == "Yesterday earnings:":
+        if not table.find_all('font')[1].text == "Yesterday earnings:":
             raise Exception("Unable to collect club sales")
         amount_earned = self.get_value_from_string(table.find_all('font')[2].text)
         print(f"Collect Club Sales\nAmount earned: {amount_earned}")
@@ -114,15 +114,14 @@ class Auto(Best11):
         
         r-type: None
         """
-
         ## Check bonus hasn't been collected already
         response = self.session.request(
             "GET",
             suburl=self.suburl_clubpage
         )
-        credits_balance_text = make_soup(response).find_all('table')[20]
-        if not re.findall(r"Get bonus", str(credits_balance_text)):
-            print("Already collected Bonus from Partners today")
+        credits_balance_table = make_soup(response).find_all('table')[20]
+        if not credits_balance_table.find('img', attrs={'src': re.compile(r"\/bonus.gif")}):
+            print("Bonus from Partners already collected today")
             return False
 
         ## Get valid partner_ids
@@ -151,7 +150,7 @@ class Auto(Best11):
 
         r-type: int
         """
-
+        # Make the request
         response = self.session.request(
             "POST",
             'antrenor.php?',
@@ -159,6 +158,7 @@ class Auto(Best11):
             data={'submit': 'Perform training'}
         )
 
+        # -- Getting value of TP obtained --
         soup = make_soup(response)
         div_text = soup.find_all('div')[4].text
 
@@ -183,24 +183,47 @@ class Auto(Best11):
         2. Collect TP
         3. Prints out the amount of TP earned. TODO make float?
         """
-        # TODO not allow if training session already completed
-
+        # You have reached max TP balance set in UserSettings. Do not continue
         if max_tp and self.tp_balance > max_tp:
             print("Exceeded max set TP")
+            return False
 
+        # -- Ensure that techstaff hired in one or more of the selected slots --
+        # e.g. if only_slot == False and only slot 2 hired -> this is okay
+        # e.g. if only_lsot == 1 and only slot 2 hired -> no point in continuing; return False
         current_techstaff = self.techstaff
-
         if not current_techstaff:
-            raise Exception("Can't collect training points - no tech staff have been hired!")
-        if only_slot and not current_techstaff.get(1):
-            raise Exception(f"No coach hired in selected slot: {only_slot}")
+            print("No techstaff have been hired! Could not collect TP")
+            return False
+        elif only_slot and not current_techstaff.get(only_slot):
+            print(f"No techstaff hired in position {only_slot}")
+            return False
 
+        # -- Determine if selected slots are requestable --
+        # i.e TP has not yet been collected today
+        response = self.session.request(
+            "GET",
+            suburl=self.suburl_facilities
+        )
+        soup = make_soup(response)
+        table_data = soup.find_all('table')[2].find_all('tr')[1].find('td')     
         slots_to_train = [only_slot] if only_slot else [1,2]
+        requestable_slots = []
+        for i in slots_to_train:
+            pattern = fr"antrenor\.php\?pag=antrenament[w&;]slot={i}"
+            if table_data.find('form', action=re.compile(pattern)):
+                requestable_slots.append(i)
 
+        if not requestable_slots:
+            print("No slots were useable!")
+            return False  
+
+        # -- Make the requests --
         total_tp_earnt = 0
         for slot in slots_to_train:
             total_tp_earnt += self.__get_tp_from_slot(slot)
 
+        # Print/Return the result
         print(f"TP earnt: {total_tp_earnt}")
         return total_tp_earnt
 
@@ -255,7 +278,6 @@ class Auto(Best11):
 
         r-type: dict
         """
-
         response = self.session.request("GET", self.suburl_facilities)
         soup = make_soup(response)
         youth_coach_box = soup.find_all('table')[3].find_all('tr')[1]
@@ -400,7 +422,6 @@ class Auto(Best11):
             r-type: tuple (len 2)
             """
             stats = re.findall(pattern, onmouseover)[0]
-            print(stats)
             return tuple([int(stats[0]), self.get_value_from_string(stats[1])])
 
         ## Go to the facilities page
@@ -745,3 +766,4 @@ class Auto(Best11):
 
 if __name__ == "__main__":
     a = Auto()
+    a.get_training_points()

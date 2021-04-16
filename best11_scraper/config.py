@@ -1,6 +1,7 @@
 
 from configparser import ConfigParser
 import util
+import re
 
 def update_config(func):
     def inner(*args, **kwargs):
@@ -139,7 +140,7 @@ class UserSettings(ConfigParser):
 
         # Get current details
         current_details = self.get_all_section('get_training_points')
-        print(f"Current details: {current_details}")
+        print(f"Current TP collection settings: {current_details}")
         if not util.yn("Update? "):
             return False
 
@@ -166,7 +167,7 @@ class UserSettings(ConfigParser):
 
         # Get current details
         current_details = self.get_all_section('training')
-        print(f"Current details: {current_details}")
+        print(f"Current Training settings: {current_details}")
         if not util.yn("Update? "):
             return False
 
@@ -189,12 +190,12 @@ class UserSettings(ConfigParser):
         
         # Get current details
         current_details = self.get_all_section('extra_training')
-        print(f"Current details: {current_details}")
+        print(f"Current Extra Training settings: {current_details}")
         if not util.yn("Update? "):
             return False
 
         on_input = util.yn("Auto-extratrain players? ")
-        self['training']['on'] = str(on_input)
+        self['extra_training']['on'] = str(on_input)
 
         if on_input:
             min_potentials = self.get_number_or_no("Min potentials: ")
@@ -225,8 +226,9 @@ class UserSettings(ConfigParser):
                 if result in util.no_list:
                     result = False
                 else:
+                    assert re.findall(r"-?\d+", result)
                     int(result)
-            except TypeError:
+            except (TypeError, AssertionError):
                 print("Please enter an integer or say 'no' for off\n")
             else:
                 return result
