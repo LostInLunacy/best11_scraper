@@ -249,6 +249,9 @@ class Player(Best11):
             # Increment some values by three because tables are moved # down the page to make way for transfer info
             self.index_dict = { k:(v if k in ('player_name', 'club') else v+3) for k, v in index_dict.items() }
 
+    def __str__(self):
+        return f"[ID: {self.player_id}] {'-'.join([str(i) for i in self.skill])} {self.player_name}"
+
     # -- Executed during __init__() --
 
     def __get_peer_averages(self):
@@ -597,6 +600,9 @@ class UserPlayer(Player):
         # Get the default information for the player
         super().__init__(player_id)
 
+    def __str__(self):
+        return f"[ID: {self.player_id}] {'-'.join([str(i) for i in self.skill])} ({'-'.join([str(i) for i in self.potential])}) {self.player_name}"
+
     @property
     def _profile(self):
         """ Returns the soup of the player's profile page. """
@@ -608,7 +614,7 @@ class UserPlayer(Player):
     def potential(self):
         """ Returns the player's potentials. r-type: int. """
         # Potentials text has these attributes. So use this to get a list of potentials
-        green_text = [i.text for i in self._profile.find_all('font', attrs={"color": "#547B22"})]
+        green_text = [i.text for i in self._profile.find_all('font', attrs={"color": "#547B22"})[-3:]]
         # Grab the float of every element in this list of it matches the \d\d pattern
         return tuple([float(i) for i in green_text if re.match(r'\d{2}', i)])
 
