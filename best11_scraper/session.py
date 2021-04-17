@@ -171,6 +171,7 @@ class Session(requests.Session):
                     print(f"Could not login.")
                     if util.yn("Reset details?"):
                         USER_SETTINGS.user_details()
+                        self.__get_username_password()
                     else:
                         ask_reset = False
             else:
