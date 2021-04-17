@@ -24,16 +24,19 @@ class TrainingApprovedList(set):
         self.original_list = self.copy()
 
         self.hours_until_next_match = self.__hours_until_next_match()
-        self.settings = self.__get_settings()
+        self.settings = self.get_settings()
 
         # Run assessments on players, removing any that cannot or shouldn't be trained
-        [x() for x in self.assessments]
+        self.run_assessments()
         
         # Print out info about rejected players
         self.do_printouts()
 
-    def __get_settings(self):
+    def get_settings(self):
         return {k:v for k, v in UserSettings().get_section_items('training').items() if isinstance(v, (int, float))}
+
+    def run_assessments(self):
+        [x() for x in self.assessments]
 
     @property
     def assessments(self):
@@ -260,7 +263,7 @@ class ExtraTrainingApprovedList(TrainingApprovedList):
     def __init__(self):
         super().__init__()
 
-    def __get_settings(self):
+    def get_settings(self):
         return {k:v for k, v in UserSettings().get_section_items('extra_training').items() if isinstance(v, (int, float))}
 
     @property
@@ -276,7 +279,7 @@ class ExtraTrainingApprovedList(TrainingApprovedList):
 
     def do_printouts(self):
         self.pretty_print(self.trained_already, "Already trained this week: ")
-        self.pretty_print(self.low_potentials, "Already reached EXP threshold: ")
+        self.pretty_print(self.high_exp, "Already reached EXP threshold: ")
         self.pretty_print(self.low_potentials, "Rejected due to low potentials: ")
         self.pretty_print(self.low_peer_advantage, "Rejected due to low peer advantage: ")
         self.pretty_print(self.low_energy, "Rejected due to low energy: ")
@@ -290,8 +293,8 @@ class ExtraTrainingApprovedList(TrainingApprovedList):
         if not (max_exp_setting := self.settings.get('max_exp')):
             self.energy_warning = set()
             return
-        self.max_exp = {i for i in self if i.exp > max_exp_setting}
-        self -= self.max_exp
+        self.high_exp = {i for i in self if i.exp >= max_exp_setting}
+        self -= self.high_exp
 
 class ExtraTraining(Training):
 
@@ -316,6 +319,6 @@ class ExtraTraining(Training):
 
 
 if __name__ == "__main__":
-    TrainingApprovedList()
+    ExtraTrainingApprovedList()
 
 

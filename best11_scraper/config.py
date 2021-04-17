@@ -224,7 +224,7 @@ class UserSettings(ConfigParser):
             try:
                 result = input(f"{prompt}\n>")
                 if result in util.no_list:
-                    result = False
+                    result = str(False)
                 else:
                     assert re.findall(r"-?\d+", result)
                     int(result)
@@ -255,3 +255,7 @@ class UserSettings(ConfigParser):
         if section not in self.sections():
             raise Exception(f"Invalid section: {section}")
         return dict(self.items(section))
+
+
+if __name__ == "__main__":
+    UserSettings().update_preferences()
