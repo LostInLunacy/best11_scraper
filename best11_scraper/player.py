@@ -263,11 +263,13 @@ class Player(Best11):
 
         r-type: nested dict
         """
+        print("Conducting searches for peer averages")
         search_results = {position: Search(position) for position in tqdm(self.player_positions)}
 
+        print("Extracting data from the searches")
         peer_averages = {
-            position: {age: search_result.get_avg_stats(specific_age=age, active_teams_only=True) for age in tqdm(range(17,36))} 
-            for position, search_result in search_results.items()
+            position: {age: search_result.get_avg_stats(specific_age=age, active_teams_only=True) for age in range(17,36)} 
+            for position, search_result in tqdm(search_results.items())
         }
         return peer_averages
 

@@ -2,6 +2,7 @@
 from configparser import ConfigParser
 import util
 import re
+import os, glob
 
 def update_config(func):
     def inner(*args, **kwargs):
@@ -23,23 +24,6 @@ class UserSettings(ConfigParser):
     def __init__(self):
         super().__init__()
         self.read(self.file_name)
-
-    # class Decorators():
-    #     """ Subclass containing decorators relating to the UserSettins class. """
-
-    #     @classmethod
-    #     def update_config(cls, func):
-    #         """
-    #         Call the function and get the result (True/False)
-    #         If the result is True:
-    #             A change has likely been made
-    #             Hence, save (i.e. write to) the file
-    #         """
-    #         def inner(*args, **kwargs):
-    #             # Get updated user settings
-    #             updated_settings = func(*args, **kwargs)
-    #             if updated_settings: self.save_file()
-    #         return inner
 
     def save_file(self):
         """ Save the config file. """
@@ -111,6 +95,10 @@ class UserSettings(ConfigParser):
             self['user_details']['username'] = username_input
         if password_input:
             self['user_details']['password'] = password_input
+
+        # Finally, delete the session file if one exists
+        for filename in glob.glob("session_files/www.best11*.bat"):
+            os.remove(filename) 
         return True
 
     def update_preferences(self):
@@ -119,19 +107,19 @@ class UserSettings(ConfigParser):
 
     @update_config
     def daily_bonus(self):
-        collect_daily_bonus = util.yn("Collect daily bonus? ")
+        collect_daily_bonus = util.yn("Collect daily bonus? (y/n)")
         self['daily_bonus']['on'] = str(collect_daily_bonus)
         return True
 
     @update_config
     def club_sales(self):
-        collect_sales = util.yn("Collect club sales? ")
+        collect_sales = util.yn("Collect club sales? (y/n)")
         self['club_sales']['on'] = str(collect_sales)
         return True
 
     @update_config
     def bonus_from_partners(self):
-        collect_bfp = util.yn("Collect bonus from partners? ")
+        collect_bfp = util.yn("Collect bonus from partners? (y/n)")
         self['bonus_from_partners']['on'] = str(collect_bfp)
         return True
 
@@ -141,16 +129,16 @@ class UserSettings(ConfigParser):
         # Get current details
         current_details = self.get_all_section('get_training_points')
         print(f"Current TP collection settings: {current_details}")
-        if not util.yn("Update? "):
+        if not util.yn("Update? (y/n)"):
             return False
 
-        on_input = util.yn("Get training points? ")
+        on_input = util.yn("Get training points? (y/n)")
         self['get_training_points']['on'] = str(on_input)
 
         # If collecting training points, confirm additional option
         if on_input:
-            max_tp = self.get_number_or_no("Max TP threshold (or say 'no' for none): ")
-            only_slot = self.get_number_or_no("Only train this slot: (or say 'no' to train both):")
+            max_tp = self.get_number_or_no("Max TP threshold (or enter 'n' for none): ")
+            only_slot = self.get_number_or_no("Only train this slot: (or enter 'n' to train both):")
 
             self['get_training_points']['max_tp'] = max_tp
             self['get_training_points']['only_slot'] = only_slot
@@ -158,7 +146,7 @@ class UserSettings(ConfigParser):
 
     @update_config
     def morale(self):
-        talk_to_players = util.yn("Automatically talk to players?")
+        talk_to_players = util.yn("Automatically talk to players? (y/n)")
         self['morale']['on'] = str(talk_to_players)
         return True
 
@@ -168,10 +156,10 @@ class UserSettings(ConfigParser):
         # Get current details
         current_details = self.get_all_section('training')
         print(f"Current Training settings: {current_details}")
-        if not util.yn("Update? "):
+        if not util.yn("Update? (y/n)"):
             return False
 
-        on_input = util.yn("Auto-train players? ")
+        on_input = util.yn("Auto-train players? (y/n)")
         self['training']['on'] = str(on_input)
 
         if on_input:
@@ -191,10 +179,10 @@ class UserSettings(ConfigParser):
         # Get current details
         current_details = self.get_all_section('extra_training')
         print(f"Current Extra Training settings: {current_details}")
-        if not util.yn("Update? "):
+        if not util.yn("Update? (y/n)"):
             return False
 
-        on_input = util.yn("Auto-extratrain players? ")
+        on_input = util.yn("Auto-extratrain players? (y/n)")
         self['extra_training']['on'] = str(on_input)
 
         if on_input:
