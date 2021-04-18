@@ -1,6 +1,8 @@
 # best11_scraper
 Scrapes from and makes requests to [best11.org](https://best11.org/)
 
+Created by callumEvans (Solent City)
+
 # Installation:
 Installer: [here](https://github.com/punkgazer/best11_scraper/releases/download/v.201/best11_scraper.exe)
 
