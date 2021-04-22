@@ -391,6 +391,20 @@ class Player(Best11):
         return int(exp.split('/')[0])
 
     @property
+    def games_until_full_exp(self):
+        """ Returns the number of games until exp would max out. r-type: int. """
+        exp = self.exp
+        if exp >= 500:
+            return 0
+
+        num_games = 0
+        while exp < 500:
+            level = exp // 100
+            exp += 5 - level
+            num_games += 1
+        return num_games
+
+    @property
     @Decorators.get_table_index
     def nat(self, table_index=''):
         """ Get NATIONALITY from player profile instance. """

@@ -314,11 +314,9 @@ class ExtraTraining(Training):
         self.session.request(
             "GET",
             suburl=self.suburl_extra_training,
-            params=player_obj.params
+            params={'id':player_obj.player_id, 'pag': 'confirmare'}
         )
 
 
 if __name__ == "__main__":
     ExtraTrainingApprovedList()
-
-
