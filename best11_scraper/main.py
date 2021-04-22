@@ -9,7 +9,7 @@ import sys
 
 APP_NAME = "Best11Scraper"
 __author__ = "callumEvans (github: punkgazer)"
-__version__ = 0.201
+__version__ = 0.202
 
 USER_SETTINGS = UserSettings()
  
