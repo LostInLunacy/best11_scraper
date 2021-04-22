@@ -15,6 +15,7 @@ from player import Player
 from spider import Best11
 from session import make_soup
 import util
+from util import TimeZones as tz
 
 
 USER_CLUB = Club(manager="user")
@@ -36,7 +37,7 @@ class ListedPlayer(Player):
         request = self.session.request("GET", suburl="vizualizare_jucator.php?", params=self.params)
         table = make_soup(request).find_all('table')[5]
 
-        current_offer = self.get_value_from_string(table.find('td').text)
+        current_offer = self.get_value_from_string(table.find('td').text) # TODO if bid won, cannot get value from str. need to fix
         current_bidder = table.find('a').text
         deadline = table.find_all('td')[2].find('b').text
 
@@ -51,9 +52,14 @@ class ListedPlayer(Player):
         return self.transfer_info['deadline']
 
     @property
-    def formatted_deadline(self):
-        str_to_pendulum = lambda deadline_string: pendulum.from_format(deadline_string, 'YYYY-MM-DD HH:mm:ss')
+    def pendulum_deadline(self):
+        str_to_pendulum = lambda deadline_string: pendulum.from_format(deadline_string, 'YYYY-MM-DD HH:mm:ss', tz=tz.server)
         return str_to_pendulum(self.deadline)
+
+    @property
+    def time_until_deadline(self):
+        period = self.pendulum_deadline - pendulum.now(tz=tz.local)
+        return period.in_seconds()
 
     @property
     def current_bidder(self):
@@ -69,7 +75,7 @@ class ListedPlayer(Player):
             raise Exception("Tried to bid on unlisted player")
         self.session.request("GET", suburl="licitatie.php?", params=self.params)
 
-    def repeat_bid(self, max_bid='10.000 C', interval=(15,65)):
+    def repeat_bid(self, max_bid='10.000 C', interval=(15,65), last_minute_bid=True):
         """ Repeatedly bid for a player while they're on the market
         and do not exceed your maximum bid. 
         
@@ -89,21 +95,29 @@ class ListedPlayer(Player):
             raise Exception(f"Could not convert {max_bid} to a number value")
 
         assert max_bid >= self.value
+        
+        # Sleep until last 3 minutes of
+        while last_minute_bid:
+            sleep_period = min(self.time_until_deadline - 60*5, 60*20)
+            if sleep_period < 1:
+                break
+            print(f"Sleeping for {sleep_period//60} minutes")
+            sleep(sleep_period) 
 
         while True:
 
             if not (info := self.transfer_info):
                 # Player is no longer listed
                 return
-            if (offer := info['current_offer']) + 20 > max_bid:
-                # Player bidding has exceeded your maximum bid
-                print("You have lost the bidding war!")
-                return
 
             ## You are actively bidding
             if (current_bidder := info['current_bidder']) == user_club_name:
                 pass
             else:
+                if (offer := info['current_offer']) + 20 > max_bid:
+                    # Player bidding has exceeded your maximum bid
+                    print("You have lost the bidding war!")
+                    return
                 print(f"\nNew bid from {current_bidder}: {offer} C")
                 # You are not the current bidder. Make bid
                 print("Making higher bid...")
@@ -147,13 +161,6 @@ class TransferList(Best11):
         tl_players = self.tl_players
         return [i for i in tl_players if i.talent >= min_talent and i.age <= max_age and i.skill_total >= min_skill and (not i.peer_advantage or i.peer_advantage >= peer_advantage)]
 
+
 if __name__ == "__main__":
-    luuk = ListedPlayer(151212)
-    luuk.repeat_bid(max_bid='1.400.000 C', interval=(50,90))
-
-
-    # t = TransferList()
-    # results = t(min_talent=5, max_age=31, min_skill=10, peer_advantage=-500)
-
-    # for i in results:
-    #     i.print_details('club', 'position', 'age', 'skills', 'fixed', 'talent', 'form', 'peer_advantage')
+    pass

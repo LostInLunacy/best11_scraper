@@ -5,6 +5,7 @@ from morale import MoraleBoost
 from training import Training, ExtraTraining
 from config import UserSettings
 from util import print_divider as print_d
+import sys
 
 APP_NAME = "Best11Scraper"
 __author__ = "callumEvans (github: punkgazer)"
@@ -55,11 +56,9 @@ def menu_system():
     print()
     print_d(f"Main Menu | {APP_NAME} v{__version__}")
 
-    def exit_app():
-        quit()
 
     options = {
-        'Quit': exit_app,
+        'Quit': sys.exit,
         'Run program': main,
         'Preferences': USER_SETTINGS.update_preferences,
         'Change login details': USER_SETTINGS.user_details

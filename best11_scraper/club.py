@@ -616,16 +616,3 @@ class UserClub(Club):
 
 if __name__ == "__main__":
     pass
-
-    # from tqdm import tqdm
-
-    # # club = Club(club="Noworry About MJ")
-    # # print(type(club.origin))
-
-    # club = Club(manager="user")
-    # home_players = club.get_home_player_ids()
-
-    # home_player_objs = sorted([Player(p) for p in tqdm(home_players)], key=lambda x:x.skill_total, reverse=True)
-
-    # for i, player in enumerate(home_player_objs):
-    #     print(f"{i+1:3d} {player.player_name} [{player.player_id}]: {player.skill_total}")
