@@ -4,7 +4,7 @@ Scrapes from and makes requests to [best11.org](https://best11.org/)
 Created by callumEvans (Solent City)
 
 # Installation:
-Installer: [here](https://github.com/punkgazer/best11_scraper/releases/download/v.201/best11_scraper.exe)
+Installer: [here](https://github.com/punkgazer/best11_scraper/releases/download/0.202/best11_scraper.exe)
 
 # How to Run
 Once installed, navigate to inside the best11_scraper folder twice and locate the executable file (labelled main)
