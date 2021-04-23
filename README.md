@@ -41,7 +41,7 @@ When you have finished with preferences, you can run the program
 (Note these preferences can be modified again at any time from the menu.)
     
 ## Running Program
-That's it. You can run the program and no more input from you is needed.
+That's it. You can run the program.
 
 The first time you run the program, some data will be retrieved from best11.
 This may take a few minutes.
