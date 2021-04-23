@@ -34,6 +34,7 @@ This is something I hope to improve in the future.
   - **Min Peer Advantage**: exclude players if their peer advantage is below this threshold
     - NOTE: peer advantage value represents how far ahead/behind a player is compared with their peers, in terms of current skill total
     - Only players belonging to active clubs are considered in this calculation.
+    - It is recommended (though not necessary) to set this value to a negative (default: -50)
   - **Energy Warning**: if a player will be below this level of energy for their next match, you will be notified prior to them being trained
 - **Extra Training**:
   - Min Potentials (see above)
