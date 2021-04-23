@@ -31,7 +31,11 @@ section and adjust the options as you see fit.
     - NOTE: peer advantage value represents how far ahead/behind a player is compared with their peers, in terms of current skill total
     - Only players belonging to active clubs are considered
   - **Energy Warning**: if a player will be below this level of energy for their next match, you will be notified prior to them being trained
-- **Extra Training**: There is a bug that means extra training doesn't work on the current version
+- **Extra Training**:
+  - Min Potentials (see above)
+  - Min Peer Advantage (see above)
+  - Energy Warning (see above)
+  - **Max EXP**: The EXP limit for apply extra training (e.g. if you choose 200, will not train a player with exp >= 200)
     
 When you have finished with preferences, you can run the program
 (Note these preferences can be modified again at any time from the menu.)
